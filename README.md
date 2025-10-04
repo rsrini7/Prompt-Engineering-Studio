@@ -6,7 +6,7 @@ An open-source IDE for designing, analyzing, and optimizing LLM prompts. This to
 
 ---
 
-## ## ✨ Key Features
+## ✨ Key Features
 
 * **Real-time Pattern Analysis:** Instantly identifies common prompt engineering patterns (like Zero-Shot, Role Prompting, Chain-of-Thought) as you type.
 * **Intelligent Template Suggestions:** Recommends relevant prompt templates from LangChain Hub based on the detected patterns in your prompt.
@@ -15,7 +15,7 @@ An open-source IDE for designing, analyzing, and optimizing LLM prompts. This to
 
 ---
 
-## ## 🛠️ Tech Stack
+## 🛠️ Tech Stack
 
 | Frontend                | Backend                          |
 | ----------------------- | -------------------------------- |
@@ -29,11 +29,11 @@ An open-source IDE for designing, analyzing, and optimizing LLM prompts. This to
 
 ---
 
-## ## 🏁 Getting Started
+## 🏁 Getting Started
 
 Follow these instructions to set up and run the project on your local machine.
 
-### ### Prerequisites
+### Prerequisites
 
 Make sure you have the following installed:
 * **Node.js** (v18 or later)
@@ -42,7 +42,7 @@ Make sure you have the following installed:
 * **Ollama**: Download and install from [ollama.com](https://ollama.com/).
     * Pull a model to be used for optimization: `ollama run gemma:2b`
 
-### ### Installation & Setup
+### Installation & Setup
 
 1.  **Clone the repository:**
     ```sh
@@ -75,7 +75,7 @@ Make sure you have the following installed:
     npm install
     ```
 
-### ### Running the Application
+### Running the Application
 
 You will need two separate terminals to run both the backend and frontend servers.
 
@@ -93,9 +93,9 @@ You will need two separate terminals to run both the backend and frontend server
 
 ---
 
-## ## 📊 Project Status
+## 📊 Project Status
 
-### ### ✅ Completed (MVP v1.0)
+### ✅ Completed (MVP v1.0)
 
 * **Core UI/UX:** Fully functional two-column layout with a polished dark theme.
 * **Pattern Detector:** Rule-based detector for identifying over 20 common prompt patterns.
@@ -103,7 +103,7 @@ You will need two separate terminals to run both the backend and frontend server
 * **DSPy Optimization:** Integrated `BootstrapFewShot` optimizer that accepts a prompt and a CSV/JSONL dataset.
 * **Comparison View:** A side-by-side view to compare the original prompt with the DSPy-optimized version.
 
-### ### 📝 Planned (Future Features)
+### 📝 Planned (Future Features)
 
 * **LLM-as-a-Refiner:** An optional toggle to use an LLM to enhance the accuracy of pattern detection.
 * **Advanced DSPy Metrics:** Integrate an "LLM-as-a-Judge" to allow optimization for qualitative metrics (e.g., style, engagement, safety).
@@ -114,6 +114,6 @@ You will need two separate terminals to run both the backend and frontend server
 
 ---
 
-## ## 📄 License
+## 📄 License
 
 This project is licensed under the MIT License.
