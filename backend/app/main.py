@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
-# Import the new router
-from .routers import analysis
+from fastapi.middleware.cors import CORSMiddleware # Import the CORS middleware
+from .routers import analysis, templates
 
 app = FastAPI(
     title="Prompt Engineering Studio API",
@@ -9,8 +9,24 @@ app = FastAPI(
     version="0.1.0",
 )
 
+# Define the list of origins that are allowed to make requests.
+# For development, this is your frontend's address.
+origins = [
+    "http://localhost:5173",
+]
+
+# Add the CORS middleware to your application
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"], # Allow all methods (GET, POST, etc.)
+    allow_headers=["*"], # Allow all headers
+)
+
 # Include the analysis router with a prefix
 app.include_router(analysis.router, prefix="/api")
+app.include_router(templates.router, prefix="/api")
 
 
 @app.get("/", include_in_schema=False)
