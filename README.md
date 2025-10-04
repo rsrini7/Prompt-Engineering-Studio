@@ -2,7 +2,7 @@
 
 An open-source IDE for designing, analyzing, and optimizing LLM prompts. This tool provides real-time feedback and powerful automation to help developers and researchers create more effective prompts.
 
-![Prompt Engineering Studio Screenshot](image_4eba9e.png)
+![Prompt Engineering Studio Screenshot](assets/screenshot.png)
 
 ---
 
