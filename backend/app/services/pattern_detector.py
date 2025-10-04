@@ -68,8 +68,13 @@ class AdvancedPromptPatternDetector:
             },
             'reflexion': {
                 'keywords': [r'reflect on', r'self-reflect', r'evaluate your',
-                           r'what went wrong', r'how to improve'],
-                'description': 'Self-reflection and improvement loop',
+                           r'what went wrong', r'how to improve', r'self-assess',
+                           r'analyze.*performance', r'critique.*yourself',
+                           r'improve.*reasoning', r'better.*response',
+                           r'self-critique', r'critique your answer',
+                           r'review and critique',
+                           r'identify.*errors', r'logical.*errors'],
+                'description': 'AI self-reflection: AI evaluates its own outputs and performance',
                 'category': 'Agent'
             },
             'automatic_reasoning': {
@@ -102,8 +107,14 @@ class AdvancedPromptPatternDetector:
             },
             'constraint_setting': {
                 'keywords': [r'must include', r'do not', r'avoid', r'only',
-                           r'ensure that', r'specifically'],
+                           r'ensure that', r'specifically', r'focus on', r'focusing on'],
                 'description': 'Sets boundaries or requirements',
+                'category': 'Control'
+            },
+            'task_decomposition': {
+                'keywords': [r'review and critique', r'provide.*feedback', r'offer.*suggestions',
+                           r'break.*down', r'step by step', r'analyze.*then'],
+                'description': 'Breaks down complex tasks into specific components',
                 'category': 'Control'
             },
             'output_formatting': {
@@ -164,6 +175,19 @@ class AdvancedPromptPatternDetector:
                 'keywords': [r'audience', r'reader', r'for.*users', r'target'],
                 'description': 'Considers the end audience',
                 'category': 'Control'
+            },
+
+            # Content Analysis & Critique (Peer Review)
+            'peer_review': {
+                'keywords': [r'review.*tweet', r'critique.*content', r'feedback.*post',
+                           r'analyze.*writing', r'evaluate.*message', r'assess.*communication',
+                           r'content.*review', r'writing.*feedback', r'social.*media.*analysis',
+                           r'provide.*feedback', r'constructive.*criticism',
+                           r'review and critique', r'provide constructive feedback',
+                           r'offer specific suggestions', r'make.*compelling',
+                           r'enhancing.*depth', r'overall.*impact'],
+                'description': 'Content critique: AI analyzes and evaluates external content',
+                'category': 'Analysis'
             }
         }
     
@@ -245,7 +269,7 @@ class AdvancedPromptPatternDetector:
             by_category[cat].append((name, match))
         
         # Display by category
-        for category in ['Basic', 'Reasoning', 'Agent', 'Retrieval', 'Control', 'Meta', 'Multimodal']:
+        for category in ['Basic', 'Reasoning', 'Agent', 'Retrieval', 'Control', 'Meta', 'Multimodal', 'Analysis']:
             if category not in by_category:
                 continue
             
@@ -354,7 +378,23 @@ Answer the question: [question]""",
             
             'role_prompting': """You are a [specific role] with expertise in [domain].
 Your task is to [specific task].
-[Additional instructions]"""
+[Additional instructions]""",
+
+            'peer_review': """You are a [role/expert] known for your [relevant characteristics].
+Review and critique the user's [content type].
+Provide constructive feedback, focusing on enhancing:
+- [specific aspect 1]
+- [specific aspect 2]
+- [specific aspect 3]
+Offer specific suggestions to make it more compelling and engaging for their audience.""",
+
+            'task_decomposition': """Break down the task into specific components:
+1. [First component - e.g., Review the content]
+2. [Second component - e.g., Identify strengths]
+3. [Third component - e.g., Provide suggestions]
+4. [Final component - e.g., Summarize improvements]
+
+Ensure each component is addressed thoroughly."""
         }
         
         return templates.get(pattern_name, "Template not available for this pattern.")

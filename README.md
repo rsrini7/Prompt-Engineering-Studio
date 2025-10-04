@@ -2,7 +2,21 @@
 
 An open-source IDE for designing, analyzing, and optimizing LLM prompts. This tool provides real-time feedback and powerful automation to help developers and researchers create more effective prompts.
 
-![Prompt Engineering Studio Screenshot](assets/screenshot.png)
+
+### 🚀 Prompt Optimization Interface
+*Advanced DSPy optimization with before/after comparison*
+
+![Optimize Screenshot](assets/optimize-screenshot.png)
+
+### 📝 Pattern Analysis View
+*Real-time pattern detection and template suggestions*
+
+![Prompt1 Screenshot](assets/prompt1-screenshot.png)
+
+### 🎨 Main Application Interface
+*Complete prompt engineering workflow with analysis panel*
+
+![Prompt2 Screenshot](assets/prompt2-screenshot.png)
 
 ---
 
