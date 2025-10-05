@@ -2,6 +2,8 @@ import re
 from typing import List, Dict, Tuple
 from dataclasses import dataclass
 import json
+import dspy
+from ..services.dspy_service import DspyService
 
 from ..models.analysis import PatternMatch
 
@@ -398,6 +400,200 @@ Ensure each component is addressed thoroughly."""
         }
         
         return templates.get(pattern_name, "Template not available for this pattern.")
+
+    def refine_patterns_with_llm(self, original_prompt: str, detected_patterns: Dict[str, PatternMatch],
+                                provider: str = "ollama", model: str = "gemma:2b", api_key: str = None) -> Dict[str, PatternMatch]:
+        """
+        Use an LLM to refine pattern detection results.
+
+        Args:
+            original_prompt: The user's original prompt
+            detected_patterns: Patterns detected by rule-based system
+            provider: LLM provider ("ollama", "openrouter", "groq")
+            model: Model name to use
+            api_key: API key if required
+
+        Returns:
+            Refined pattern detection results
+        """
+        # Create meta-prompt for LLM review
+        meta_prompt = self._create_refinement_meta_prompt(original_prompt, detected_patterns)
+
+        try:
+            # Configure LLM
+            dspy_service = DspyService()
+            llm = dspy_service.configure_llm(provider, model, api_key)
+
+            # Create DSPy signature for pattern refinement
+            class PatternRefinementSignature(dspy.Signature):
+                """Refine prompt pattern detection results."""
+                meta_prompt = dspy.InputField()
+                refined_json = dspy.OutputField(desc="JSON object with refined pattern analysis")
+
+            # Get LLM response using dspy.context
+            try:
+                with dspy.context(lm=llm):
+                    try:
+                        # Try modern DSPy syntax first
+                        refinement_program = dspy.Predict(PatternRefinementSignature)
+                        response = refinement_program(meta_prompt=meta_prompt)
+                        refined_json = response.refined_json
+                    except AttributeError:
+                        # Fallback for different DSPy versions
+                        refinement_program = dspy.Predict(PatternRefinementSignature)
+                        response = refinement_program(meta_prompt=meta_prompt)
+                        refined_json = getattr(response, 'refined_json', str(response))
+
+                # Parse and return refined results
+                return self._parse_llm_refinement_response(refined_json, detected_patterns)
+
+            except (AttributeError, TypeError) as e:
+                if "context" in str(e) or "OpenAI" in str(e) or "Predict" in str(e):
+                    print(f"DSPy compatibility issue: {e}")
+                    print("Falling back to rule-based detection only...")
+                    # Return original patterns if DSPy operations fail
+                    return detected_patterns
+                else:
+                    raise
+
+        except Exception as e:
+            print(f"LLM refinement failed: {e}")
+            # Fall back to original patterns if LLM refinement fails
+            return detected_patterns
+
+    def _create_refinement_meta_prompt(self, original_prompt: str, detected_patterns: Dict[str, PatternMatch]) -> str:
+        """Create a meta-prompt for LLM pattern refinement."""
+
+        # List all available patterns
+        available_patterns = list(self.patterns.keys())
+        available_patterns_str = "\n".join(f"- {pattern}" for pattern in available_patterns)
+
+        # Format detected patterns
+        detected_str = ""
+        for name, match in detected_patterns.items():
+            detected_str += f"""
+Pattern: {name}
+Confidence: {match.confidence}
+Description: {match.description}
+Evidence: {', '.join(match.evidence[:2])}
+Category: {match.category}
+---
+"""
+
+        meta_prompt = f"""
+You are an expert prompt engineering analyst. Review the following prompt and the patterns detected by an automated system.
+
+**Original Prompt:**
+{original_prompt}
+
+**Automatically Detected Patterns:**
+{detected_str}
+
+**Available Pattern Types:**
+{available_patterns_str}
+
+**Your Task:**
+Review the original prompt and the detected patterns. Then:
+
+1. **Correct any mistakes** in the automated detection
+2. **Add any missing patterns** from the available list that should be detected
+3. **Remove patterns** that don't actually apply
+4. **Adjust confidence scores** (0.0-1.0) based on how well each pattern fits
+5. **Add evidence** for each pattern you include
+
+**Response Format:**
+You MUST respond with a JSON object in this EXACT format:
+{{
+    "patterns": {{
+        "zero_shot": {{
+            "confidence": 0.7,
+            "evidence": ["No clear examples found, suggesting a zero-shot approach."],
+            "description": "Direct task without examples",
+            "category": "Basic"
+        }},
+        "role_prompting": {{
+            "confidence": 0.9,
+            "evidence": ["You are a Twitter expert assigned to craft outstanding tweets."],
+            "description": "Assigns a specific role or persona",
+            "category": "Basic"
+        }}
+    }}
+}}
+
+**Guidelines:**
+- Only include patterns that are actually present in the prompt
+- Focus on the most relevant and confident patterns (aim for 3-8 patterns max)
+- Provide specific evidence from the prompt text
+- Be conservative with high confidence scores (0.8+ only for very clear matches)
+- Consider pattern interactions and hierarchies
+
+**Critical:** Respond ONLY with the JSON object, no explanations, no markdown formatting, no additional text.
+"""
+
+        return meta_prompt
+
+    def _parse_llm_refinement_response(self, llm_response: str, fallback_patterns: Dict[str, PatternMatch]) -> Dict[str, PatternMatch]:
+        """Parse the LLM's JSON response and create PatternMatch objects."""
+        try:
+            # Clean the response (remove markdown formatting if present)
+            cleaned_response = llm_response.strip()
+            if cleaned_response.startswith("```json"):
+                cleaned_response = cleaned_response[7:]
+            if cleaned_response.endswith("```"):
+                cleaned_response = cleaned_response[:-3]
+            cleaned_response = cleaned_response.strip()
+
+            # Try to parse JSON
+            try:
+                parsed = json.loads(cleaned_response)
+            except json.JSONDecodeError:
+                # If direct parsing fails, try to extract JSON from the response
+                json_match = re.search(r'\{.*\}', cleaned_response, re.DOTALL)
+                if json_match:
+                    parsed = json.loads(json_match.group())
+                else:
+                    print(f"Could not extract JSON from response: {cleaned_response}")
+                    return fallback_patterns
+
+            # Handle different response formats
+            refined_patterns = {}
+
+            # Check if response has the expected "patterns" structure
+            if "patterns" in parsed:
+                patterns_data = parsed["patterns"]
+            else:
+                # Handle case where LLM returns a single pattern or different structure
+                patterns_data = parsed
+
+            # Convert to PatternMatch objects
+            if isinstance(patterns_data, dict):
+                for pattern_name, pattern_data in patterns_data.items():
+                    if pattern_name in self.patterns:  # Only include known patterns
+                        # Handle both single pattern objects and nested structures
+                        if isinstance(pattern_data, dict):
+                            refined_patterns[pattern_name] = PatternMatch(
+                                pattern=pattern_name,
+                                confidence=float(pattern_data.get("confidence", 0.0)),
+                                evidence=pattern_data.get("evidence", []),
+                                description=pattern_data.get("description", self.patterns[pattern_name]["description"]),
+                                category=pattern_data.get("category", self.patterns[pattern_name]["category"])
+                            )
+                        else:
+                            # If pattern_data is not a dict, create a basic entry
+                            refined_patterns[pattern_name] = PatternMatch(
+                                pattern=pattern_name,
+                                confidence=0.5,  # Default confidence
+                                evidence=[str(pattern_data)] if pattern_data else [],
+                                description=self.patterns[pattern_name]["description"],
+                                category=self.patterns[pattern_name]["category"]
+                            )
+
+            return refined_patterns if refined_patterns else fallback_patterns
+
+        except (json.JSONDecodeError, KeyError, ValueError, AttributeError) as e:
+            print(f"Failed to parse LLM response: {e}")
+            print(f"Response was: {llm_response}")
+            return fallback_patterns
 
 
 # Example usage

@@ -23,6 +23,10 @@ An open-source IDE for designing, analyzing, and optimizing LLM prompts. This to
 ## ✨ Key Features
 
 * **Real-time Pattern Analysis:** Instantly identifies common prompt engineering patterns (like Zero-Shot, Role Prompting, Chain-of-Thought) as you type.
+* **LLM-as-a-Refiner:** Advanced pattern detection accuracy using LLM refinement for enhanced analysis precision (optional toggle).
+* **Advanced DSPy Metrics:** Support for both exact match and LLM-as-a-Judge (qualitative) optimization metrics.
+* **Cost Estimation & Guardrails:** Real-time cost estimation with configurable iteration limits and cost control features.
+* **Intelligent Template Merging:** Automatically populate LangChain Hub templates with content from user prompts using LLM intelligence.
 * **Intelligent Template Suggestions:** Recommends relevant prompt templates from LangChain Hub based on the detected patterns in your prompt.
 * **Automated Prompt Optimization:** Uses **DSPy** to automatically optimize your prompts by generating few-shot examples from a small dataset you provide.
 * **Modern UI:** A clean, responsive, dark-themed interface built for an efficient and pleasant workflow.
@@ -64,7 +68,16 @@ Make sure you have the following installed:
     cd Prompt-Engineering-Studio
     ```
 
-2.  **Set up the Backend:**
+2.  **Configure Environment Variables:**
+    ```powershell
+    # Copy the example environment file
+    cp .env .env.local
+
+    # Edit .env.local with your actual API keys
+    notepad .env.local
+    ```
+
+3.  **Set up the Backend:**
     ```powershell
     # Navigate to the backend directory
     cd backend
@@ -74,13 +87,13 @@ Make sure you have the following installed:
     .\.venv\Scripts\Activate.ps1
 
     # Install the required packages
-    uv pip install fastapi uvicorn[standard] websockets python-dotenv langchain dspy-ai pandas python-multipart
+    uv pip install fastapi uvicorn[standard] websockets python-dotenv dspy-ai pandas python-multipart
 
     # (Optional) Create a requirements.txt file
     uv pip freeze > requirements.txt
     ```
 
-3.  **Set up the Frontend:**
+4.  **Set up the Frontend:**
     ```powershell
     # Navigate to the frontend directory from the root
     cd frontend
@@ -105,6 +118,148 @@ You will need two separate terminals to run both the backend and frontend server
     * Start the development server: `npm run dev`
     * The UI will be available at `http://localhost:5173`
 
+### API Key Configuration
+
+The application supports multiple LLM providers and requires API keys for external services. Configure your API keys using environment variables:
+
+#### Required API Keys
+
+1. **LangSmith API Key** (for accessing LangChain Hub templates)
+   - Get from: https://smith.langchain.com/settings
+   - Environment variable: `LANGSMITH_API_KEY`
+
+2. **Groq API Key** (for fast LLM inference)
+   - Get from: https://console.groq.com/keys
+   - Environment variable: `GROQ_API_KEY`
+
+3. **OpenRouter API Key** (for accessing various LLM models)
+   - Get from: https://openrouter.ai/keys
+   - Environment variable: `OPENROUTER_API_KEY`
+
+#### Setup Instructions
+
+1. **Copy the environment file:**
+   ```bash
+   cp .env .env.local
+   ```
+
+2. **Edit with your API keys:**
+   ```bash
+   # Windows
+   notepad .env.local
+
+   # macOS/Linux
+   nano .env.local
+   ```
+
+3. **Fill in your actual API keys:**
+   ```env
+   LANGSMITH_API_KEY=lsv2_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   GROQ_API_KEY=gsk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   OPENROUTER_API_KEY=sk-or-v1-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   ```
+
+4. **Restart the backend server** to load the new environment variables.
+
+#### Provider Requirements
+
+- **Ollama**: No API key required (local inference)
+- **OpenRouter/Groq**: API keys required for cloud inference
+- **LangSmith**: API key required for accessing template hub
+
+### Using LLM-as-a-Refiner
+
+The application now includes an advanced LLM-as-a-Refiner feature for enhanced pattern detection accuracy:
+
+1. **Enable the Feature:** In the Pattern Analysis panel, toggle "🤖 Use LLM Refiner"
+2. **Configure LLM Provider:** Select your preferred provider (Ollama, OpenRouter, or Groq)
+3. **Set Model:** Enter the model name (e.g., `gemma:2b` for Ollama)
+4. **API Key Handling:** The system automatically uses environment variables or provided keys
+5. **Enhanced Analysis:** The system will now use LLM refinement for improved pattern detection accuracy
+
+**Note:** This feature requires a running LLM service (Ollama) or valid API credentials for cloud providers.
+
+### Using Advanced DSPy Metrics
+
+The application now supports both quantitative and qualitative prompt optimization:
+
+1. **Select Optimization Metric:** In the "Optimize Prompt" panel, choose between:
+   - **"Exact Match (Default)"** - Traditional string matching against ground truth
+   - **"LLM-as-a-Judge (Quality Score)"** - AI-powered qualitative evaluation
+
+2. **Configure LLM Provider:** Set up your preferred provider for the LLM judge evaluation
+
+3. **Upload Dataset:** Provide a CSV/JSONL file with question-answer pairs for optimization
+
+4. **Run Optimization:** The system will use your selected metric to optimize the prompt
+
+**LLM-as-a-Judge Benefits:**
+- Evaluates style, engagement, and clarity
+- Provides human-like quality assessment
+- Better for creative or subjective tasks
+- More nuanced than exact string matching
+
+**Use Cases:**
+- **Exact Match**: Factual Q&A, technical content, precise instructions
+- **LLM-as-a-Judge**: Creative writing, marketing copy, conversational AI, subjective content
+
+### Using Cost Estimation & Guardrails
+
+The application now includes responsible AI features for cost management and optimization control:
+
+1. **Enable Cost Estimation:** Toggle "💰 Show Cost Estimation" in the Optimize Prompt panel
+
+2. **Configure Guardrails:** Set maximum iterations (1-10) to control optimization intensity
+
+3. **Review Cost Breakdown:** View detailed cost estimation including:
+   - Token counts (input/output)
+   - Provider-specific pricing
+   - Total estimated cost
+   - Example count and iteration details
+
+4. **Cost Confirmation:** For significant costs (>$0.01), users are prompted for confirmation before proceeding
+
+**Cost Management Benefits:**
+- **Transparent Pricing:** Clear cost breakdown before optimization
+- **Budget Control:** Set iteration limits to manage expenses
+- **Provider Flexibility:** Automatic pricing for different LLM providers
+- **Resource Awareness:** Make informed decisions about optimization intensity
+
+**Guardrails Features:**
+- **Iteration Control:** Limit optimization rounds (1-10 iterations)
+- **Cost Thresholds:** Automatic confirmation for expensive operations
+- **Provider Awareness:** Accurate pricing for Ollama, OpenRouter, and Groq
+- **Real-time Updates:** Cost estimation updates as settings change
+
+### Using Intelligent Template Merging
+
+The application now includes AI-powered template population for seamless prompt engineering:
+
+1. **Write Your Prompt:** Enter your prompt in the text area as usual
+
+2. **Run Pattern Analysis:** Click "Analyze" to detect patterns and get template suggestions
+
+3. **Review Templates:** View suggested templates with match scores in the Templates section
+
+4. **Merge & Use:** Click "🚀 Merge & Use" on any template suggestion to:
+   - Automatically extract key information from your prompt
+   - Intelligently fill in template variables (like {context}, {question})
+   - Replace your current prompt with the merged result
+   - Switch to the Analyze tab to see the enhanced prompt
+
+**Template Merging Benefits:**
+- **Intelligent Mapping:** AI understands your intent and maps content to appropriate variables
+- **Time-Saving:** No manual copying and pasting of template variables
+- **Context-Aware:** Preserves the meaning and structure of your original prompt
+- **One-Click Workflow:** Seamless transition from template selection to prompt enhancement
+
+**Template Variables Supported:**
+- **{context}**: Background information and context
+- **{question}**: The main question or task
+- **{format}**: Desired output format or structure
+- **{examples}**: Example inputs/outputs when relevant
+- **Custom variables**: Any template-specific variables are intelligently filled
+
 ---
 
 ## 📊 Project Status
@@ -121,6 +276,13 @@ This is what has been successfully built and is currently working in the applica
 * **Basic Guardrails:** The DSPy optimizer is configured with basic limits on the number of examples to generate (`max_boot_strapped_demos`).
 * **Comparison UI:** A polished, side-by-side view to clearly compare the original prompt with the optimized version.
 
+### 🚀 Completed (v1.1 - Enhanced AI Features)
+
+* **LLM-as-a-Refiner:** Advanced pattern detection accuracy using LLM refinement for enhanced analysis precision with optional toggle in Pattern Analysis panel.
+* **Advanced DSPy Metrics:** Support for both exact match and LLM-as-a-Judge (qualitative) optimization metrics for comprehensive prompt evaluation.
+* **Cost Estimation & Guardrails:** Real-time cost estimation with configurable iteration limits and cost control features for responsible AI usage.
+* **Intelligent Template Merging:** Automatically populate LangChain Hub templates with content from user prompts using LLM intelligence.
+
 ---
 
 ## 🗺️ Planned Future Features
@@ -128,14 +290,10 @@ This is what has been successfully built and is currently working in the applica
 This is the roadmap for what can be built on top of the current MVP foundation.
 
 ### Core Functionality Enhancements
-* **Intelligent Template Merging:** A feature to automatically map a user's original prompt content into the variables of a selected Hub template.
 * **UI-Based Dataset Builder:** A simple form within the application to help users create small test datasets from scratch without needing a CSV file.
 * **Export Options:** Buttons to export the final, optimized prompt as a ready-to-use JSON object or Python script.
 
 ### Advanced AI & Optimization
-* **LLM-as-a-Refiner:** An optional toggle to use a second LLM call to improve the accuracy and confidence of the initial pattern detection.
-* **Advanced DSPy Metrics (LLM-as-a-Judge):** The ability to optimize prompts against qualitative metrics like "style," "engagement," or "safety," not just exact matches.
-* **Cost Estimation (Human in the Loop):** A feature that estimates the potential cost of a DSPy optimization job and asks the user for confirmation before running.
 * **Configurable Guardrails & Timeouts:** A UI to allow users to set their own limits on optimization time, LLM calls, or iterations to better manage resources.
 
 ### Platform & Workflow

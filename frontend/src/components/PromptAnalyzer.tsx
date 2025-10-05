@@ -1,244 +1,227 @@
-import { useState, useEffect } from 'react';
-import axios from 'axios';
-
-// --- Type definitions ---
-interface Pattern {
-    pattern: string;
-    confidence: number;
-    evidence: string[];
-    description: string;
-    category: string;
-}
-
-interface AnalysisResponse {
-    patterns: Record<string, Pattern>;
-}
-
-interface TemplateSuggestion {
-    name: string;
-    score: number;
-}
-
-interface OptimizationResult {
-    original_prompt: string;
-    optimized_prompt: string;
-}
+import { useState } from 'react';
+import type { LLMConfig } from '../types/promptAnalyzer';
+import { usePromptAnalysis } from '../hooks/usePromptAnalysis';
+import { useTemplateOperations } from '../hooks/useTemplateOperations';
+import { usePromptOptimization } from '../hooks/usePromptOptimization';
+import PromptInputSection from './PromptInputSection';
+import PatternAnalysisResults from './PatternAnalysisResults';
+import TemplateSuggestions from './TemplateSuggestions';
+import MergedTemplatePreview from './MergedTemplatePreview';
+import OptimizationPanel from './OptimizationPanel';
 
 const PromptAnalyzer = () => {
-    // --- State variables ---
+    // --- Core state ---
     const [prompt, setPrompt] = useState<string>("Answer the following question.");
-    const [results, setResults] = useState<AnalysisResponse | null>(null);
-    const [suggestions, setSuggestions] = useState<TemplateSuggestion[]>([]);
-    const [isLoading, setIsLoading] = useState<boolean>(false);
-    const [error, setError] = useState<string>('');
 
-    // --- State for the optimization feature ---
-    const [selectedFile, setSelectedFile] = useState<File | null>(null);
-    const [optimizationStatus, setOptimizationStatus] = useState<'idle' | 'optimizing' | 'success' | 'error'>('idle');
-    const [optimizationResult, setOptimizationResult] = useState<OptimizationResult | null>(null);
-    const [optimizationError, setOptimizationError] = useState<string>('');
+    // --- LLM Configuration ---
+    const [llmConfig, setLLMConfig] = useState<LLMConfig>({
+        useLlmRefiner: false,
+        refinerProvider: 'ollama',
+        refinerModel: 'gemma:2b',
+        refinerApiKey: ''
+    });
 
-    const [provider, setProvider] = useState<string>('ollama');
-    const [model, setModel] = useState<string>('gemma:2b');
-    const [apiKey, setApiKey] = useState<string>('');
+    // Use LLM refiner config for optimization (shared configuration)
+    const currentProvider = llmConfig.useLlmRefiner ? llmConfig.refinerProvider : 'ollama';
+    const currentModel = llmConfig.useLlmRefiner ? llmConfig.refinerModel : 'gemma:2b';
+    const currentApiKey = llmConfig.useLlmRefiner ? llmConfig.refinerApiKey : '';
 
-    // This useEffect hook handles the real-time analysis and suggestions
-    useEffect(() => {
-        if (!prompt.trim()) {
-            setResults(null);
-            setSuggestions([]);
-            return;
-        }
+    // --- Custom Hooks ---
+    const {
+        results,
+        suggestions,
+        isLoading,
+        error,
+        analyzePrompt
+    } = usePromptAnalysis(llmConfig);
 
-        setIsLoading(true);
-        setError('');
-        setSuggestions([]);
+    const {
+        templatePreviewState,
+        isMergingTemplate,
+        loadTemplatePreview,
+        previewTemplateMerge,
+        clearMergedTemplates
+    } = useTemplateOperations();
 
-        const handler = setTimeout(() => {
-            axios.post<AnalysisResponse>('http://127.0.0.1:8000/api/analyze', { prompt })
-                .then(response => {
-                    const analysisResults = response.data;
-                    setResults(analysisResults);
-                    if (analysisResults && Object.keys(analysisResults.patterns).length > 0) {
-                        return axios.post('http://127.0.0.1:8000/api/templates/suggest', analysisResults);
-                    }
-                })
-                .then(suggestionResponse => {
-                    if (suggestionResponse) {
-                        setSuggestions(suggestionResponse.data.suggestions);
-                    }
-                })
-                .catch(err => {
-                    setError('Failed to fetch data. Make sure the backend is running.');
-                    console.error(err);
-                })
-                .finally(() => {
-                    setIsLoading(false);
-                });
-        }, 500);
+    const {
+        optimizationConfig,
+        setOptimizationConfig,
+        costEstimation,
+        isEstimatingCost,
+        optimizationStatus,
+        optimizationResult,
+        optimizationError,
+        optimizePrompt,
+        handleCostEstimation,
+        resetOptimization
+    } = usePromptOptimization(llmConfig);
 
-        return () => clearTimeout(handler);
-    }, [prompt]);
+    // --- Event Handlers ---
+    const handleAnalyzeClick = () => {
+        analyzePrompt(prompt);
+    };
 
-    // Handler function for the optimize button
-    const handleOptimizeClick = async () => {
-        // Reset previous errors on each new attempt
-        setOptimizationError('');
-        setOptimizationResult(null);
-        setOptimizationStatus('idle');
+    const handleLLMConfigChange = (config: Partial<LLMConfig>) => {
+        setLLMConfig(prev => ({ ...prev, ...config }));
+    };
 
-        // --- VALIDATION CHECKS ---
-        if (!selectedFile) {
-            setOptimizationError("Please select a dataset file first.");
-            setOptimizationStatus('error'); // This line was missing
-            return;
-        }
-        if (!model.trim()) {
-            setOptimizationError("Please enter a model name.");
-            setOptimizationStatus('error'); // This line was missing
-            return;
-        }
-        if ((provider === 'openrouter' || provider === 'groq') && !apiKey.trim()) {
-            setOptimizationError(`Please enter an API key for ${provider}.`);
-            setOptimizationStatus('error'); // This line was missing
-            return;
-        }
+    const handleTemplateVisible = (templateSlug: string) => {
+        loadTemplatePreview(templateSlug);
+    };
 
-        setOptimizationStatus('optimizing');
-        const formData = new FormData();
-        formData.append('prompt', prompt);
-        formData.append('dataset', selectedFile);
-        formData.append('provider', provider);
-        formData.append('model', model);
-        formData.append('api_key', apiKey);
-
-
+    const handlePreviewTemplate = async (templateSlug: string) => {
         try {
-            const response = await axios.post<OptimizationResult>('http://127.0.0.1:8000/api/optimize', formData, {
-                headers: { 'Content-Type': 'multipart/form-data' },
-            });
-
-            console.log("Optimization response received:", response.data); 
-
-            setOptimizationResult(response.data);
-            setOptimizationStatus('success');
-        }  catch (err: any) {
-            const errorDetail = err.response?.data?.detail || "Optimization failed. Check console and backend logs.";
-            setOptimizationError(errorDetail);
-            setOptimizationStatus('error');
-            console.error(err);
+            await previewTemplateMerge(
+                prompt,
+                templateSlug,
+                llmConfig.refinerProvider,
+                llmConfig.refinerModel,
+                llmConfig.refinerApiKey
+            );
+        } catch (err) {
+            console.error('Template preview failed:', err);
         }
     };
 
-   return (
+    const handleApplyMergedTemplate = (templateSlug: string) => {
+        const mergedContent = templatePreviewState.mergedTemplates[templateSlug];
+        if (mergedContent) {
+            setPrompt(mergedContent);
+            clearMergedTemplates();
+        }
+    };
+
+    const handleOptimizeClick = () => {
+        optimizePrompt(prompt);
+    };
+
+    const handleCostEstimationToggle = (show: boolean) => {
+        // This is handled by the usePromptOptimization hook
+    };
+
+    return (
         <div className="container">
             <h1 className="header">Prompt Engineering Studio</h1>
-            <div className="main-grid">
-                {/* Left column for the main editor and optimization results */}
-                <div className="editor-column">
-                    <div className="results-panel editor-container">
-                        <h2 className="sub-header">Your Prompt</h2>
-                        <textarea
-                            className="prompt-textarea"
-                            value={prompt}
-                            onChange={(e) => setPrompt(e.target.value)}
-                            placeholder="Enter your prompt here..."
-                        />
+
+            <PromptInputSection
+                prompt={prompt}
+                setPrompt={setPrompt}
+                onAnalyze={handleAnalyzeClick}
+                isLoading={isLoading}
+                llmConfig={llmConfig}
+                onLLMConfigChange={handleLLMConfigChange}
+            />
+
+            <div className="three-panel-layout">
+                {/* Left Panel - Pattern Analysis */}
+                <div className="panel-left">
+                    <div className="panel-header">
+                        <h3 className="panel-title">🔍 Pattern Analysis</h3>
                     </div>
-                    {optimizationStatus === 'success' && optimizationResult && (
-                        <div className="results-panel optimization-results"> {/* Add 'optimization-results' class */}
-                            <h2 className="sub-header">🚀 Optimization Complete</h2>
-                            <div className="optimization-results-grid">
-                                <div>
-                                    <h4 className="result-header">Before</h4>
-                                    <pre className="prompt-box">{optimizationResult.original_prompt}</pre>
+                    <div className="panel-content">
+                        <PatternAnalysisResults
+                            results={results}
+                            isLoading={isLoading}
+                        />
+
+                        {/* Loading and Error States for Pattern Analysis */}
+                        {isLoading && (
+                            <div className="results-panel" style={{
+                                backgroundColor: 'var(--background-panel)',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: '12px',
+                                textAlign: 'center',
+                                padding: '2rem'
+                            }}>
+                                <div style={{ fontSize: '1.1rem', color: 'var(--primary-accent)', marginBottom: '0.5rem' }}>
+                                    🔍 Analyzing your prompt...
                                 </div>
-                                <div>
-                                    <h4 className="result-header">After</h4>
-                                    <pre className="prompt-box">{optimizationResult.optimized_prompt}</pre>
+                                <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                                    This may take a few moments
                                 </div>
                             </div>
-                        </div>
-                    )}
+                        )}
+
+                        {error && (
+                            <div className="results-panel" style={{
+                                backgroundColor: 'var(--error-color)',
+                                color: 'white',
+                                borderRadius: '12px',
+                                padding: '1rem',
+                                textAlign: 'center'
+                            }}>
+                                <div style={{ fontSize: '0.9rem' }}>{error}</div>
+                            </div>
+                        )}
+
+                        {!isLoading && !error && !results && (
+                            <div className="results-panel" style={{
+                                backgroundColor: 'var(--background-panel)',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: '12px',
+                                textAlign: 'center',
+                                padding: '2rem',
+                                color: 'var(--text-secondary)'
+                            }}>
+                                <div style={{ fontSize: '1rem', marginBottom: '0.5rem' }}>
+                                    📊 Ready to analyze
+                                </div>
+                                <div style={{ fontSize: '0.9rem' }}>
+                                    Enter a prompt above and click "Analyze" to get started
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
 
-                {/* Right column for analysis and optimization controls */}
-                <div className="analysis-column">
-                    <div className="results-panel">
-                        <h2 className="sub-header">Pattern Analysis</h2>
-                        {isLoading && <p>Analyzing...</p>}
-                        {error && <p className="error-text">{error}</p>}
-                        {results && !isLoading && Object.keys(results.patterns).length > 0 && (
-                            <div className="patterns-grid">
-                                {Object.values(results.patterns).map((p) => (
-                                    <div key={p.pattern} className="pattern-card">
-                                        <h3 className="pattern-title">{p.pattern.replace(/_/g, ' ')}</h3>
-                                        <p className="pattern-category">{p.category}</p>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
+                {/* Middle Panel - Template Workflow */}
+                <div className="panel-middle">
+                    <div className="panel-header">
+                        <h3 className="panel-title">💡 Template Workflow</h3>
                     </div>
-                    <div className="results-panel">
-                        <h2 className="sub-header">💡 Template Suggestions</h2>
-                        {isLoading && <p>Loading suggestions...</p>}
-                        {suggestions.length > 0 && !isLoading && (
-                            <div className="suggestions-list">
-                                {suggestions.map((s) => (
-                                    <div key={s.name} className="suggestion-card">
-                                        <span className="suggestion-name">{s.name}</span>
-                                        <span className="suggestion-score">Match: {s.score}%</span>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                        {!isLoading && !error && results && suggestions.length === 0 && <p>No template suggestions for this prompt.</p>}
+                    <div className="panel-content">
+                        <TemplateSuggestions
+                            suggestions={suggestions}
+                            isLoading={isLoading}
+                            templatePreviewState={templatePreviewState}
+                            onTemplateVisible={handleTemplateVisible}
+                            onPreviewTemplate={handlePreviewTemplate}
+                            isMergingTemplate={isMergingTemplate}
+                        />
+
+                        <MergedTemplatePreview
+                            mergedTemplates={templatePreviewState.mergedTemplates}
+                            onApplyMergedTemplate={handleApplyMergedTemplate}
+                        />
                     </div>
-                    <div className="results-panel">
-                        <h2 className="sub-header">Optimize Prompt</h2>
-                        <div className="optimize-controls">
-                            <label className="input-label">Provider</label>
-                            <select className="select-input" value={provider} onChange={e => setProvider(e.target.value)}>
-                                <option value="ollama">Ollama (Local)</option>
-                                <option value="openrouter">OpenRouter</option>
-                                <option value="groq">Groq</option>
-                            </select>
-                            <label className="input-label">Model Name</label>
-                            <input 
-                                type="text" 
-                                className="text-input" 
-                                value={model} 
-                                onChange={e => setModel(e.target.value)}
-                                placeholder={provider === 'ollama' ? 'e.g., gemma:2b' : 'e.g., meta-llama/llama-3-8b-instruct'}
-                            />
-                            {(provider === 'openrouter' || provider === 'groq') && (
-                                <>
-                                    <label className="input-label">API Key</label>
-                                    <input 
-                                        type="password"
-                                        className="text-input"
-                                        value={apiKey}
-                                        onChange={e => setApiKey(e.target.value)}
-                                        placeholder={`Your ${provider} API Key`}
-                                    />
-                                </>
-                            )}
-                            <label className="file-input-label">
-                                {selectedFile ? `Selected: ${selectedFile.name}` : 'Choose Dataset File'}
-                                <input type="file" onChange={(e) => setSelectedFile(e.target.files ? e.target.files[0] : null)} accept=".csv,.jsonl"/>
-                            </label>
-                            <button onClick={handleOptimizeClick} disabled={optimizationStatus === 'optimizing'}>
-                                {optimizationStatus === 'optimizing' ? 'Optimizing...' : 'Start Optimization'}
-                            </button>
-                        </div>
-                        {optimizationStatus === 'error' && <p className="error-text">{optimizationError}</p>}
+                </div>
+
+                {/* Right Panel - Optimization Controls */}
+                <div className="panel-right">
+                    <div className="panel-header">
+                        <h3 className="panel-title">⚡ Optimization Controls</h3>
+                    </div>
+                    <div className="panel-content">
+                        <OptimizationPanel
+                            optimizationConfig={optimizationConfig}
+                            onOptimizationConfigChange={(config) => setOptimizationConfig(prev => ({ ...prev, ...config }))}
+                            costEstimation={costEstimation}
+                            isEstimatingCost={isEstimatingCost}
+                            optimizationStatus={optimizationStatus}
+                            optimizationResult={optimizationResult}
+                            optimizationError={optimizationError}
+                            onOptimize={handleOptimizeClick}
+                            onCostEstimationToggle={handleCostEstimationToggle}
+                            currentProvider={currentProvider}
+                            currentModel={currentModel}
+                            useLlmRefiner={llmConfig.useLlmRefiner}
+                        />
                     </div>
                 </div>
             </div>
+
         </div>
     );
 };
-
-
 
 export default PromptAnalyzer;
