@@ -361,35 +361,6 @@ const PromptAnalyzer = () => {
                        >
                            {isLoading ? '🔍 Analyzing...' : '🔍 Analyze'}
                        </button>
-                       <button
-                           onClick={() => {
-                               setActiveTab('optimize');
-                               // Scroll to optimization section
-                               setTimeout(() => {
-                                   const optimizeSection = document.querySelector('.controls-column');
-                                   if (optimizeSection) {
-                                       optimizeSection.scrollIntoView({
-                                           behavior: 'smooth',
-                                           block: 'center'
-                                       });
-                                   }
-                               }, 100);
-                           }}
-                           style={{
-                               backgroundColor: 'var(--background-card)',
-                               color: 'var(--text-primary)',
-                               border: '1px solid var(--border-color)',
-                               padding: '0.75rem 1.5rem',
-                               borderRadius: '8px',
-                               cursor: 'pointer',
-                               fontSize: '0.9rem',
-                               fontWeight: '500',
-                               position: 'relative'
-                           }}
-                           title="🔄 Switch to optimization tab"
-                       >
-                           ⚡ Go to Optimize
-                       </button>
                    </div>
                </div>
                <textarea
