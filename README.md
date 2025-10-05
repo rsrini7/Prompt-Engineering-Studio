@@ -28,6 +28,8 @@ An open-source IDE for designing, analyzing, and optimizing LLM prompts. This to
 * **Cost Estimation & Guardrails:** Real-time cost estimation with configurable iteration limits and cost control features.
 * **Intelligent Template Merging:** Automatically populate LangChain Hub templates with content from user prompts using LLM intelligence.
 * **Intelligent Template Suggestions:** Recommends relevant prompt templates from LangChain Hub based on the detected patterns in your prompt.
+* **UI-Based Dataset Builder:** Create datasets directly in the application with an intuitive modal interface - no CSV files needed.
+* **Export Options:** Export optimized prompts as JSON with metadata or as ready-to-use Python scripts with usage examples.
 * **Automated Prompt Optimization:** Uses **DSPy** to automatically optimize your prompts by generating few-shot examples from a small dataset you provide.
 * **Modern UI:** A clean, responsive, dark-themed interface built for an efficient and pleasant workflow.
 
@@ -283,6 +285,11 @@ This is what has been successfully built and is currently working in the applica
 * **Cost Estimation & Guardrails:** Real-time cost estimation with configurable iteration limits and cost control features for responsible AI usage.
 * **Intelligent Template Merging:** Automatically populate LangChain Hub templates with content from user prompts using LLM intelligence.
 
+### ✅ Completed (v1.2 - Workflow Enhancements)
+
+* **UI-Based Dataset Builder:** Modal interface allowing users to create datasets directly in the application with question-answer pairs, automatically converted to CSV format.
+* **Export Options:** Complete export functionality for optimized prompts including JSON format with metadata and Python script format with usage examples.
+
 ---
 
 ## 🗺️ Planned Future Features
@@ -290,8 +297,7 @@ This is what has been successfully built and is currently working in the applica
 This is the roadmap for what can be built on top of the current MVP foundation.
 
 ### Core Functionality Enhancements
-* **UI-Based Dataset Builder:** A simple form within the application to help users create small test datasets from scratch without needing a CSV file.
-* **Export Options:** Buttons to export the final, optimized prompt as a ready-to-use JSON object or Python script.
+* **Configurable Guardrails & Timeouts:** A UI to allow users to set their own limits on optimization time, LLM calls, or iterations to better manage resources.
 
 ### Advanced AI & Optimization
 * **Configurable Guardrails & Timeouts:** A UI to allow users to set their own limits on optimization time, LLM calls, or iterations to better manage resources.
