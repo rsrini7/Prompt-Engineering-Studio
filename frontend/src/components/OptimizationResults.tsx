@@ -24,7 +24,10 @@ const OptimizationResults: React.FC<OptimizationResultsProps> = ({
             border: '3px solid var(--primary-accent)',
             boxShadow: '0 0 30px rgba(13, 142, 255, 0.4)',
             marginTop: '1.5rem',
-            position: 'relative'
+            marginBottom: '1rem',
+            position: 'relative',
+            boxSizing: 'border-box',
+            overflow: 'visible'
         }}>
             <div style={{
                 position: 'absolute',
