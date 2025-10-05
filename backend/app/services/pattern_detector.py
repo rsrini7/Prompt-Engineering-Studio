@@ -502,14 +502,20 @@ Review the original prompt and the detected patterns. Then:
 5. **Add evidence** for each pattern you include
 
 **Response Format:**
-Return a JSON object in this exact format:
+You MUST respond with a JSON object in this EXACT format:
 {{
     "patterns": {{
-        "pattern_name": {{
-            "confidence": 0.8,
-            "evidence": ["evidence 1", "evidence 2"],
-            "description": "pattern description",
-            "category": "pattern category"
+        "zero_shot": {{
+            "confidence": 0.7,
+            "evidence": ["No clear examples found, suggesting a zero-shot approach."],
+            "description": "Direct task without examples",
+            "category": "Basic"
+        }},
+        "role_prompting": {{
+            "confidence": 0.9,
+            "evidence": ["You are a Twitter expert assigned to craft outstanding tweets."],
+            "description": "Assigns a specific role or persona",
+            "category": "Basic"
         }}
     }}
 }}
@@ -521,7 +527,7 @@ Return a JSON object in this exact format:
 - Be conservative with high confidence scores (0.8+ only for very clear matches)
 - Consider pattern interactions and hierarchies
 
-**Important:** Respond ONLY with the JSON object, no other text.
+**Critical:** Respond ONLY with the JSON object, no explanations, no markdown formatting, no additional text.
 """
 
         return meta_prompt
@@ -537,25 +543,56 @@ Return a JSON object in this exact format:
                 cleaned_response = cleaned_response[:-3]
             cleaned_response = cleaned_response.strip()
 
-            # Parse JSON
-            parsed = json.loads(cleaned_response)
+            # Try to parse JSON
+            try:
+                parsed = json.loads(cleaned_response)
+            except json.JSONDecodeError:
+                # If direct parsing fails, try to extract JSON from the response
+                json_match = re.search(r'\{.*\}', cleaned_response, re.DOTALL)
+                if json_match:
+                    parsed = json.loads(json_match.group())
+                else:
+                    print(f"Could not extract JSON from response: {cleaned_response}")
+                    return fallback_patterns
+
+            # Handle different response formats
+            refined_patterns = {}
+
+            # Check if response has the expected "patterns" structure
+            if "patterns" in parsed:
+                patterns_data = parsed["patterns"]
+            else:
+                # Handle case where LLM returns a single pattern or different structure
+                patterns_data = parsed
 
             # Convert to PatternMatch objects
-            refined_patterns = {}
-            for pattern_name, pattern_data in parsed.get("patterns", {}).items():
-                if pattern_name in self.patterns:  # Only include known patterns
-                    refined_patterns[pattern_name] = PatternMatch(
-                        pattern=pattern_name,
-                        confidence=float(pattern_data.get("confidence", 0.0)),
-                        evidence=pattern_data.get("evidence", []),
-                        description=pattern_data.get("description", self.patterns[pattern_name]["description"]),
-                        category=pattern_data.get("category", self.patterns[pattern_name]["category"])
-                    )
+            if isinstance(patterns_data, dict):
+                for pattern_name, pattern_data in patterns_data.items():
+                    if pattern_name in self.patterns:  # Only include known patterns
+                        # Handle both single pattern objects and nested structures
+                        if isinstance(pattern_data, dict):
+                            refined_patterns[pattern_name] = PatternMatch(
+                                pattern=pattern_name,
+                                confidence=float(pattern_data.get("confidence", 0.0)),
+                                evidence=pattern_data.get("evidence", []),
+                                description=pattern_data.get("description", self.patterns[pattern_name]["description"]),
+                                category=pattern_data.get("category", self.patterns[pattern_name]["category"])
+                            )
+                        else:
+                            # If pattern_data is not a dict, create a basic entry
+                            refined_patterns[pattern_name] = PatternMatch(
+                                pattern=pattern_name,
+                                confidence=0.5,  # Default confidence
+                                evidence=[str(pattern_data)] if pattern_data else [],
+                                description=self.patterns[pattern_name]["description"],
+                                category=self.patterns[pattern_name]["category"]
+                            )
 
             return refined_patterns if refined_patterns else fallback_patterns
 
-        except (json.JSONDecodeError, KeyError, ValueError) as e:
+        except (json.JSONDecodeError, KeyError, ValueError, AttributeError) as e:
             print(f"Failed to parse LLM response: {e}")
+            print(f"Response was: {llm_response}")
             return fallback_patterns
 
 

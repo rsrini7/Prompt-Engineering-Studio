@@ -53,8 +53,8 @@ class DspyService:
     def configure_llm(self, provider: str, model: str, api_key: str):
         """Configures the DSPy LLM based on the selected provider."""
         if provider == "ollama":
-            # For Ollama, the model name is passed directly
-            llm = dspy.LM(model=model, max_tokens=150, api_base='http://localhost:11434', api_key='')
+            # For Ollama, use LiteLLM format with provider prefix
+            llm = dspy.LM(model=f"ollama/{model}", max_tokens=150, api_base='http://localhost:11434', api_key='')
         elif provider == "openrouter":
             # OpenRouter uses an OpenAI-compatible API
             if not api_key:
