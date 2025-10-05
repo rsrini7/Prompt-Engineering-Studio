@@ -625,10 +625,100 @@ button[title*="Switch to"]:hover {
     box-sizing: border-box;
 }
 
+/* --- Three Panel Layout --- */
+.three-panel-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 2rem;
+    align-items: stretch;
+    width: 100%;
+    box-sizing: border-box;
+    margin-top: 1rem;
+}
+
+.panel-left,
+.panel-middle,
+.panel-right {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 700px;
+}
+
+.panel-header {
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid var(--border-color);
+}
+
+.panel-title {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.panel-content {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+/* Panel specific styling */
+.panel-left {
+    background: var(--background-panel);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 1.5rem;
+}
+
+.panel-middle {
+    background: var(--background-panel);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    padding: 1.5rem;
+}
+
+.panel-right {
+    background: var(--background-card);
+    border: 2px solid var(--border-color);
+    border-radius: 12px;
+    padding: 1.5rem;
+}
+
+.panel-right .panel-title {
+    color: var(--primary-accent);
+}
+
 /* --- Responsive Design --- */
+@media (max-width: 1400px) {
+    .three-panel-layout {
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+    }
+
+    .panel-right {
+        grid-column: span 2;
+    }
+}
+
 @media (max-width: 1200px) {
     .container {
         padding: 0 0.5rem;
+    }
+
+    .three-panel-layout {
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+    }
+
+    .panel-right {
+        grid-column: span 2;
     }
 
     .main-grid {
@@ -660,6 +750,21 @@ button[title*="Switch to"]:hover {
 @media (max-width: 768px) {
     .container {
         padding: 0 0.5rem;
+    }
+
+    .three-panel-layout {
+        grid-template-columns: 1fr;
+        gap: 1.5rem;
+    }
+
+    .panel-left,
+    .panel-middle,
+    .panel-right {
+        min-height: auto;
+    }
+
+    .panel-content {
+        gap: 1rem;
     }
 
     .prompt-section {

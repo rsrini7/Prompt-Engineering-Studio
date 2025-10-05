@@ -25,12 +25,7 @@ const TemplateSuggestions: React.FC<TemplateSuggestionsProps> = ({
     const { templatePreviews, loadingPreviews, previewErrors } = templatePreviewState;
 
     return (
-        <div className="results-panel" style={{
-            backgroundColor: 'var(--background-panel)',
-            border: '1px solid var(--border-color)',
-            borderRadius: '12px'
-        }}>
-            <h2 className="sub-header" style={{ marginBottom: '1rem' }}>💡 Template Suggestions</h2>
+        <>
             <div style={{
                 fontSize: '0.8rem',
                 color: 'var(--text-secondary)',
@@ -151,7 +146,7 @@ const TemplateSuggestions: React.FC<TemplateSuggestionsProps> = ({
                     +{suggestions.length - 6} more suggestions available
                 </div>
             )}
-        </div>
+        </>
     );
 };
 

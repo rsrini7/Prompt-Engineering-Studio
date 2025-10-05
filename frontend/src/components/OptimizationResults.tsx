@@ -17,9 +17,11 @@ const OptimizationResults: React.FC<OptimizationResultsProps> = ({
     return (
         <div className="optimization-results" style={{
             width: '100%',
-            padding: '2rem',
-            borderRadius: '16px',
-            animation: 'fadeIn 0.3s ease-in-out'
+            padding: '1.5rem',
+            borderRadius: '12px',
+            animation: 'fadeIn 0.3s ease-in-out',
+            backgroundColor: 'var(--background-panel)',
+            border: '1px solid var(--primary-accent)'
         }}>
             <h2 className="sub-header" style={{ textAlign: 'center', marginBottom: '2rem' }}>
                 🚀 Optimization Complete

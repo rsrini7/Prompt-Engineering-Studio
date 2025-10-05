@@ -8,7 +8,6 @@ import PatternAnalysisResults from './PatternAnalysisResults';
 import TemplateSuggestions from './TemplateSuggestions';
 import MergedTemplatePreview from './MergedTemplatePreview';
 import OptimizationPanel from './OptimizationPanel';
-import OptimizationResults from './OptimizationResults';
 
 const PromptAnalyzer = () => {
     // --- Core state ---
@@ -113,97 +112,114 @@ const PromptAnalyzer = () => {
                 onLLMConfigChange={handleLLMConfigChange}
             />
 
-            <div className="main-grid">
-                <div className="results-column" style={{ width: '100%' }}>
-                    <PatternAnalysisResults
-                        results={results}
-                        isLoading={isLoading}
-                    />
+            <div className="three-panel-layout">
+                {/* Left Panel - Pattern Analysis */}
+                <div className="panel-left">
+                    <div className="panel-header">
+                        <h3 className="panel-title">🔍 Pattern Analysis</h3>
+                    </div>
+                    <div className="panel-content">
+                        <PatternAnalysisResults
+                            results={results}
+                            isLoading={isLoading}
+                        />
 
-                    <TemplateSuggestions
-                        suggestions={suggestions}
-                        isLoading={isLoading}
-                        templatePreviewState={templatePreviewState}
-                        onTemplateVisible={handleTemplateVisible}
-                        onPreviewTemplate={handlePreviewTemplate}
-                        isMergingTemplate={isMergingTemplate}
-                    />
-
-                    <MergedTemplatePreview
-                        mergedTemplates={templatePreviewState.mergedTemplates}
-                        onApplyMergedTemplate={handleApplyMergedTemplate}
-                    />
-
-                    {/* Loading and Error States */}
-                    {isLoading && (
-                        <div className="results-panel" style={{
-                            backgroundColor: 'var(--background-panel)',
-                            border: '1px solid var(--border-color)',
-                            borderRadius: '12px',
-                            textAlign: 'center',
-                            padding: '2rem'
-                        }}>
-                            <div style={{ fontSize: '1.1rem', color: 'var(--primary-accent)', marginBottom: '0.5rem' }}>
-                                🔍 Analyzing your prompt...
+                        {/* Loading and Error States for Pattern Analysis */}
+                        {isLoading && (
+                            <div className="results-panel" style={{
+                                backgroundColor: 'var(--background-panel)',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: '12px',
+                                textAlign: 'center',
+                                padding: '2rem'
+                            }}>
+                                <div style={{ fontSize: '1.1rem', color: 'var(--primary-accent)', marginBottom: '0.5rem' }}>
+                                    🔍 Analyzing your prompt...
+                                </div>
+                                <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                                    This may take a few moments
+                                </div>
                             </div>
-                            <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                                This may take a few moments
-                            </div>
-                        </div>
-                    )}
+                        )}
 
-                    {error && (
-                        <div className="results-panel" style={{
-                            backgroundColor: 'var(--error-color)',
-                            color: 'white',
-                            borderRadius: '12px',
-                            padding: '1rem',
-                            textAlign: 'center'
-                        }}>
-                            <div style={{ fontSize: '0.9rem' }}>{error}</div>
-                        </div>
-                    )}
+                        {error && (
+                            <div className="results-panel" style={{
+                                backgroundColor: 'var(--error-color)',
+                                color: 'white',
+                                borderRadius: '12px',
+                                padding: '1rem',
+                                textAlign: 'center'
+                            }}>
+                                <div style={{ fontSize: '0.9rem' }}>{error}</div>
+                            </div>
+                        )}
 
-                    {!isLoading && !error && !results && (
-                        <div className="results-panel" style={{
-                            backgroundColor: 'var(--background-panel)',
-                            border: '1px solid var(--border-color)',
-                            borderRadius: '12px',
-                            textAlign: 'center',
-                            padding: '2rem',
-                            color: 'var(--text-secondary)'
-                        }}>
-                            <div style={{ fontSize: '1rem', marginBottom: '0.5rem' }}>
-                                📊 Ready to analyze
+                        {!isLoading && !error && !results && (
+                            <div className="results-panel" style={{
+                                backgroundColor: 'var(--background-panel)',
+                                border: '1px solid var(--border-color)',
+                                borderRadius: '12px',
+                                textAlign: 'center',
+                                padding: '2rem',
+                                color: 'var(--text-secondary)'
+                            }}>
+                                <div style={{ fontSize: '1rem', marginBottom: '0.5rem' }}>
+                                    📊 Ready to analyze
+                                </div>
+                                <div style={{ fontSize: '0.9rem' }}>
+                                    Enter a prompt above and click "Analyze" to get started
+                                </div>
                             </div>
-                            <div style={{ fontSize: '0.9rem' }}>
-                                Enter a prompt above and click "Analyze" to get started
-                            </div>
-                        </div>
-                    )}
+                        )}
+                    </div>
                 </div>
 
-                <div className="controls-column">
-                    <OptimizationPanel
-                        optimizationConfig={optimizationConfig}
-                        onOptimizationConfigChange={(config) => setOptimizationConfig(prev => ({ ...prev, ...config }))}
-                        costEstimation={costEstimation}
-                        isEstimatingCost={isEstimatingCost}
-                        optimizationStatus={optimizationStatus}
-                        optimizationError={optimizationError}
-                        onOptimize={handleOptimizeClick}
-                        onCostEstimationToggle={handleCostEstimationToggle}
-                        currentProvider={currentProvider}
-                        currentModel={currentModel}
-                        useLlmRefiner={llmConfig.useLlmRefiner}
-                    />
+                {/* Middle Panel - Template Workflow */}
+                <div className="panel-middle">
+                    <div className="panel-header">
+                        <h3 className="panel-title">💡 Template Workflow</h3>
+                    </div>
+                    <div className="panel-content">
+                        <TemplateSuggestions
+                            suggestions={suggestions}
+                            isLoading={isLoading}
+                            templatePreviewState={templatePreviewState}
+                            onTemplateVisible={handleTemplateVisible}
+                            onPreviewTemplate={handlePreviewTemplate}
+                            isMergingTemplate={isMergingTemplate}
+                        />
+
+                        <MergedTemplatePreview
+                            mergedTemplates={templatePreviewState.mergedTemplates}
+                            onApplyMergedTemplate={handleApplyMergedTemplate}
+                        />
+                    </div>
+                </div>
+
+                {/* Right Panel - Optimization Controls */}
+                <div className="panel-right">
+                    <div className="panel-header">
+                        <h3 className="panel-title">⚡ Optimization Controls</h3>
+                    </div>
+                    <div className="panel-content">
+                        <OptimizationPanel
+                            optimizationConfig={optimizationConfig}
+                            onOptimizationConfigChange={(config) => setOptimizationConfig(prev => ({ ...prev, ...config }))}
+                            costEstimation={costEstimation}
+                            isEstimatingCost={isEstimatingCost}
+                            optimizationStatus={optimizationStatus}
+                            optimizationResult={optimizationResult}
+                            optimizationError={optimizationError}
+                            onOptimize={handleOptimizeClick}
+                            onCostEstimationToggle={handleCostEstimationToggle}
+                            currentProvider={currentProvider}
+                            currentModel={currentModel}
+                            useLlmRefiner={llmConfig.useLlmRefiner}
+                        />
+                    </div>
                 </div>
             </div>
 
-            <OptimizationResults
-                optimizationStatus={optimizationStatus}
-                optimizationResult={optimizationResult}
-            />
         </div>
     );
 };

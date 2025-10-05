@@ -14,22 +14,7 @@ const MergedTemplatePreview: React.FC<MergedTemplatePreviewProps> = ({
     }
 
     return (
-        <div className="results-panel" style={{
-            backgroundColor: 'var(--background-panel)',
-            border: '1px solid var(--primary-accent)',
-            borderRadius: '12px',
-            marginTop: '1.5rem'
-        }}>
-            <h2 className="sub-header" style={{
-                marginBottom: '1rem',
-                color: 'var(--primary-accent)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.5rem'
-            }}>
-                🔄 Updated Prompt Preview
-            </h2>
-
+        <>
             <div style={{
                 fontSize: '0.9rem',
                 color: 'var(--text-secondary)',
@@ -113,7 +98,7 @@ const MergedTemplatePreview: React.FC<MergedTemplatePreviewProps> = ({
                     </div>
                 </div>
             ))}
-        </div>
+        </>
     );
 };
 

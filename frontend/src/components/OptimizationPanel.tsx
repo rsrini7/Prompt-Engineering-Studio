@@ -1,5 +1,6 @@
 import React from 'react';
-import type { OptimizationConfig, CostEstimation, OptimizationStatus, LLMConfig } from '../types/promptAnalyzer';
+import type { OptimizationConfig, CostEstimation, OptimizationStatus, OptimizationResult, LLMConfig } from '../types/promptAnalyzer';
+import OptimizationResults from './OptimizationResults';
 
 interface OptimizationPanelProps {
     optimizationConfig: OptimizationConfig;
@@ -7,6 +8,7 @@ interface OptimizationPanelProps {
     costEstimation: CostEstimation | null;
     isEstimatingCost: boolean;
     optimizationStatus: OptimizationStatus;
+    optimizationResult: OptimizationResult | null;
     optimizationError: string;
     onOptimize: () => void;
     onCostEstimationToggle: (show: boolean) => void;
@@ -21,6 +23,7 @@ const OptimizationPanel: React.FC<OptimizationPanelProps> = ({
     costEstimation,
     isEstimatingCost,
     optimizationStatus,
+    optimizationResult,
     optimizationError,
     onOptimize,
     onCostEstimationToggle,
@@ -29,10 +32,8 @@ const OptimizationPanel: React.FC<OptimizationPanelProps> = ({
     useLlmRefiner
 }) => {
     return (
-        <div className="results-panel">
-            <h2 className="sub-header">⚡ Prompt Optimization</h2>
-
-            {/* Quick Configuration */}
+        <>
+             {/* Quick Configuration */}
             <div style={{
                 display: 'grid',
                 gridTemplateColumns: '1fr 1fr',
@@ -205,7 +206,13 @@ const OptimizationPanel: React.FC<OptimizationPanelProps> = ({
             )}
 
             {optimizationStatus === 'error' && <p className="error-text">{optimizationError}</p>}
-        </div>
+
+            {/* Optimization Results - shown within the panel */}
+            <OptimizationResults
+                optimizationStatus={optimizationStatus}
+                optimizationResult={optimizationResult}
+            />
+        </>
     );
 };
 
