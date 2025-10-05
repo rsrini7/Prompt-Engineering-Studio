@@ -1,7 +1,9 @@
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware # Import the CORS middleware
-from .routers import analysis, templates, optimization
+from .routers.analysis import router as analysis_router
+from .routers.templates import router as templates_router
+from .routers.optimization import router as optimization_router
 
 app = FastAPI(
     title="Prompt Engineering Studio API",
@@ -24,10 +26,10 @@ app.add_middleware(
     allow_headers=["*"], # Allow all headers
 )
 
-# Include the analysis router with a prefix
-app.include_router(analysis.router, prefix="/api")
-app.include_router(templates.router, prefix="/api")
-app.include_router(optimization.router, prefix="/api")
+# Include the routers with a prefix
+app.include_router(analysis_router, prefix="/api")
+app.include_router(templates_router, prefix="/api")
+app.include_router(optimization_router, prefix="/api")
 
 
 @app.get("/", include_in_schema=False)

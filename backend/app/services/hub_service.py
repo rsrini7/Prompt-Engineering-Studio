@@ -1,9 +1,103 @@
-from langchain import hub
+# LangChain Hub has moved to LangSmith - using local templates instead
+# from langchain import hub  # This no longer works as expected
+
 from ..models.analysis import PatternMatch
 from typing import List, Dict
 import re
 import dspy
 from ..services.dspy_service import DspyService
+
+# Local template repository (more reliable than external hub)
+LOCAL_TEMPLATES = {
+    "hwchase17/react-chat": """Thought: {thought}
+Action: {action}
+Observation: {observation}
+
+... (repeat until task is solved)
+
+Final Answer: {final_answer}""",
+
+    "rlm/rag-prompt": """Use the following pieces of context to answer the question at the end.
+
+Context:
+{context}
+
+Question: {question}
+
+Helpful Answer:""",
+
+    "hwchase17/react-json": """Thought: {thought}
+Action: {action}
+Observation: {observation}
+
+... (repeat as needed)
+
+Final Answer: {final_answer}""",
+
+    "rlm/rag-prompt-cot": """Use the following pieces of context to answer the question at the end. Let's think step by step.
+
+Context:
+{context}
+
+Question: {question}
+
+Step by step reasoning:
+1. {step1}
+2. {step2}
+3. {step3}
+
+Final Answer:""",
+
+    "langchain-ai/retrieval-qa-chat": """You are an AI assistant helping answer questions based on provided context.
+
+Context:
+{context}
+
+Question: {question}
+
+Please provide a helpful and accurate answer based on the context above.""",
+
+    "hwchase17/react": """Question: {question}
+
+Thought: {thought}
+Action: {action}
+Observation: {observation}
+
+Final Answer: {answer}""",
+
+    "chain_of_thought": """Let's solve this step by step:
+
+1. First, understand the problem
+2. Break it down into smaller parts
+3. Work through each part systematically
+4. Combine the results
+
+Question: {question}
+
+Answer: {answer}""",
+
+    "few_shot": """Here are some examples:
+
+Example 1:
+Input: {example1_input}
+Output: {example1_output}
+
+Example 2:
+Input: {example2_input}
+Output: {example2_output}
+
+Now solve this:
+Input: {input}
+Output:""",
+
+    "role_prompting": """You are a {role} with expertise in {domain}.
+
+Task: {task}
+
+Instructions: {instructions}
+
+Please provide your response:"""
+}
 
 # This maps our internal pattern names to popular LangChain Hub prompts.
 # We can expand this list over time.
@@ -60,7 +154,7 @@ class HubService:
 
     def get_template_content(self, template_slug: str) -> str:
         """
-        Fetch the actual content of a LangChain Hub template.
+        Fetch the actual content of a template using local repository.
 
         Args:
             template_slug: The template slug (e.g., "rlm/rag-prompt")
@@ -71,18 +165,27 @@ class HubService:
         if template_slug in TEMPLATE_CACHE:
             return TEMPLATE_CACHE[template_slug]
 
-        try:
-            # Pull template from LangChain Hub
-            template = hub.pull(template_slug)
-            content = str(template)
-
-            # Cache the template content
+        # Use local template repository (more reliable than external hub)
+        if template_slug in LOCAL_TEMPLATES:
+            content = LOCAL_TEMPLATES[template_slug]
             TEMPLATE_CACHE[template_slug] = content
-
             return content
-        except Exception as e:
-            print(f"Failed to fetch template {template_slug}: {e}")
-            return ""
+
+        # Fallback for pattern-based template names
+        if template_slug == "chain_of_thought":
+            content = LOCAL_TEMPLATES["chain_of_thought"]
+            TEMPLATE_CACHE[template_slug] = content
+            return content
+
+        # Generic fallback for unknown templates
+        print(f"Template {template_slug} not found, using generic template")
+        generic_content = f"""Template: {template_slug}
+
+{{input}}
+
+[Template content not available in local repository]"""
+        TEMPLATE_CACHE[template_slug] = generic_content
+        return generic_content
 
     def get_template_with_metadata(self, template_slug: str) -> Dict:
         """
@@ -97,16 +200,23 @@ class HubService:
         content = self.get_template_content(template_slug)
 
         if not content:
-            return {"content": "", "variables": [], "error": "Template not found"}
+            # Return a minimal template structure if no content available
+            return {
+                "content": f"Template: {template_slug}\n\n{{input}}\n\n[Template content not available]",
+                "variables": ["input"],
+                "slug": template_slug,
+                "variable_count": 1,
+                "error": "Template content not available, using placeholder"
+            }
 
         # Extract variables (common patterns like {variable}, {{variable}}, etc.)
         variables = set(re.findall(r'\{([^}]+)\}', content))
 
         return {
             "content": content,
-            "variables": list(variables),
+            "variables": list(variables) if variables else ["input"],
             "slug": template_slug,
-            "variable_count": len(variables)
+            "variable_count": len(variables) if variables else 1
         }
 
     def merge_template_with_prompt(self, user_prompt: str, template_slug: str,

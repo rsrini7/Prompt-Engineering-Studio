@@ -49,4 +49,5 @@ async def get_template_content(template_slug: str):
         template_info = hub_service.get_template_with_metadata(template_slug)
         return template_info
     except Exception as e:
+        print(f"Error getting template {template_slug}: {e}")
         raise HTTPException(status_code=500, detail=str(e))

@@ -66,6 +66,11 @@ const PromptAnalyzer = () => {
     // --- State for template merging ---
     const [isMergingTemplate, setIsMergingTemplate] = useState<boolean>(false);
 
+    // --- State for template previews ---
+    const [templatePreviews, setTemplatePreviews] = useState<Record<string, string>>({});
+    const [loadingPreviews, setLoadingPreviews] = useState<Record<string, boolean>>({});
+    const [previewErrors, setPreviewErrors] = useState<Record<string, string>>({});
+
     // Manual pattern analysis trigger
     const handleAnalyzeClick = async () => {
         if (!prompt.trim()) {
@@ -120,6 +125,22 @@ const PromptAnalyzer = () => {
             return () => clearTimeout(timeoutId);
         }
     }, [selectedFile, currentModel, maxIterations, currentProvider, showCostEstimation, activeTab]);
+
+    // Auto-load template previews when suggestions are available
+    useEffect(() => {
+        if (suggestions.length > 0) {
+            // Load previews for visible suggestions with a small delay
+            const timeoutId = setTimeout(() => {
+                suggestions.slice(0, 3).forEach(suggestion => {
+                    if (!templatePreviews[suggestion.name] && !loadingPreviews[suggestion.name]) {
+                        loadTemplatePreview(suggestion.name);
+                    }
+                });
+            }, 500);
+
+            return () => clearTimeout(timeoutId);
+        }
+    }, [suggestions]);
 
     // Handle cost estimation
     const handleCostEstimation = async () => {
@@ -186,6 +207,49 @@ const PromptAnalyzer = () => {
         } finally {
             setIsMergingTemplate(false);
         }
+    };
+
+    // Handler function to load template preview
+    const loadTemplatePreview = async (templateSlug: string) => {
+        if (templatePreviews[templateSlug] || loadingPreviews[templateSlug] || previewErrors[templateSlug]) {
+            return; // Already loaded, loading, or has error
+        }
+
+        setLoadingPreviews(prev => ({ ...prev, [templateSlug]: true }));
+
+        try {
+            const response = await axios.get(`http://127.0.0.1:8000/api/templates/content/${templateSlug}`);
+            const templateData = response.data;
+
+            setTemplatePreviews(prev => ({
+                ...prev,
+                [templateSlug]: templateData.content || 'No preview available'
+            }));
+
+            // Clear any previous errors
+            setPreviewErrors(prev => {
+                const newErrors = { ...prev };
+                delete newErrors[templateSlug];
+                return newErrors;
+            });
+        } catch (err) {
+            console.error(`Failed to load preview for ${templateSlug}:`, err);
+            setPreviewErrors(prev => ({
+                ...prev,
+                [templateSlug]: 'Failed to load preview'
+            }));
+            setTemplatePreviews(prev => ({
+                ...prev,
+                [templateSlug]: 'Preview not available'
+            }));
+        } finally {
+            setLoadingPreviews(prev => ({ ...prev, [templateSlug]: false }));
+        }
+    };
+
+    // Load template preview when suggestion becomes visible
+    const handleTemplateVisible = (templateSlug: string) => {
+        loadTemplatePreview(templateSlug);
     };
 
     // Handler function for the optimize button
@@ -423,7 +487,11 @@ const PromptAnalyzer = () => {
 
                            <div className="suggestions-list">
                                {suggestions.slice(0, 6).map((suggestion) => (
-                                   <div key={suggestion.name} className="suggestion-card">
+                                   <div
+                                       key={suggestion.name}
+                                       className="suggestion-card"
+                                       onMouseEnter={() => handleTemplateVisible(suggestion.name)}
+                                   >
                                        <div className="suggestion-name">
                                            {suggestion.name}
                                        </div>
@@ -432,7 +500,75 @@ const PromptAnalyzer = () => {
                                        </div>
 
                                        <div className="template-preview">
-                                           Template preview will be loaded...
+                                           {loadingPreviews[suggestion.name] ? (
+                                               <div style={{
+                                                   textAlign: 'center',
+                                                   color: 'var(--primary-accent)',
+                                                   fontSize: '0.8rem',
+                                                   display: 'flex',
+                                                   alignItems: 'center',
+                                                   justifyContent: 'center',
+                                                   gap: '0.5rem',
+                                                   height: '100%'
+                                               }}>
+                                                   <span style={{ fontSize: '0.7rem' }}>⏳</span>
+                                                   Loading...
+                                               </div>
+                                           ) : previewErrors[suggestion.name] ? (
+                                               <div style={{
+                                                   textAlign: 'center',
+                                                   color: 'var(--error-color)',
+                                                   fontSize: '0.7rem',
+                                                   display: 'flex',
+                                                   alignItems: 'center',
+                                                   justifyContent: 'center',
+                                                   gap: '0.5rem',
+                                                   height: '100%'
+                                               }}>
+                                                   <span style={{ fontSize: '0.7rem' }}>⚠️</span>
+                                                   {previewErrors[suggestion.name]}
+                                               </div>
+                                           ) : templatePreviews[suggestion.name] ? (
+                                               <div style={{
+                                                   fontSize: '0.75rem',
+                                                   lineHeight: '1.3',
+                                                   height: '80px',
+                                                   overflow: 'hidden',
+                                                   whiteSpace: 'pre-wrap',
+                                                   wordBreak: 'break-word',
+                                                   position: 'relative'
+                                               }}>
+                                                   {templatePreviews[suggestion.name]}
+                                                   {templatePreviews[suggestion.name].length > 150 && (
+                                                       <div style={{
+                                                           position: 'absolute',
+                                                           bottom: 0,
+                                                           right: 0,
+                                                           background: 'linear-gradient(90deg, transparent, var(--background-dark))',
+                                                           padding: '0 1rem',
+                                                           fontSize: '0.7rem',
+                                                           color: 'var(--text-secondary)',
+                                                           fontWeight: 'bold'
+                                                       }}>
+                                                           ...
+                                                       </div>
+                                                   )}
+                                               </div>
+                                           ) : (
+                                               <div style={{
+                                                   textAlign: 'center',
+                                                   color: 'var(--text-secondary)',
+                                                   fontSize: '0.8rem',
+                                                   display: 'flex',
+                                                   alignItems: 'center',
+                                                   justifyContent: 'center',
+                                                   gap: '0.5rem',
+                                                   height: '100%'
+                                               }}>
+                                                   <span style={{ fontSize: '0.7rem' }}>👆</span>
+                                                   Hover to load
+                                               </div>
+                                           )}
                                        </div>
 
                                        <button
