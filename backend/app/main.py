@@ -1,3 +1,19 @@
+from dotenv import load_dotenv
+import os
+from pathlib import Path
+
+# Load environment variables from .env.local file
+# Use absolute path to ensure correct loading regardless of working directory
+current_dir = Path(__file__).parent
+project_root = current_dir.parent.parent
+env_file = project_root / '.env.local'
+
+if env_file.exists():
+    load_dotenv(env_file)
+    print(f"Loaded environment variables from: {env_file}")
+else:
+    print(f"Warning: .env.local file not found at {env_file}")
+
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware # Import the CORS middleware

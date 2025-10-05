@@ -3,6 +3,7 @@ import pandas as pd
 import io
 import json
 import tiktoken
+import os
 from typing import List, Dict, Any
 
 # 1. Define signatures for different tasks
@@ -50,35 +51,52 @@ MODEL_PRICING = {
 }
 
 class DspyService:
-    def configure_llm(self, provider: str, model: str, api_key: str):
+    def configure_llm(self, provider: str, model: str, api_key: str = ""):
         """Configures the DSPy LLM based on the selected provider."""
+        # Try to get API key from environment variables first, then use provided key
+        actual_api_key = api_key or self._get_api_key_for_provider(provider)
+
         if provider == "ollama":
             # For Ollama, use LiteLLM format with provider prefix
             llm = dspy.LM(model=f"ollama/{model}", max_tokens=150, api_base='http://localhost:11434', api_key='')
         elif provider == "openrouter":
             # OpenRouter uses an OpenAI-compatible API
-            if not api_key:
-                raise ValueError("API key is required for OpenRouter.")
+            if not actual_api_key:
+                raise ValueError("API key is required for OpenRouter. Set OPENROUTER_API_KEY environment variable or pass api_key parameter.")
             # Use LiteLLM for OpenRouter
             llm = dspy.LM(
                 model=f"openrouter/{model}",
-                api_key=api_key,
+                api_key=actual_api_key,
                 max_tokens=150
             )
         elif provider == "groq":
             # Groq also uses an OpenAI-compatible API
-            if not api_key:
-                raise ValueError("API key is required for Groq.")
+            if not actual_api_key:
+                raise ValueError("API key is required for Groq. Set GROQ_API_KEY environment variable or pass api_key parameter.")
             # Use LiteLLM for Groq
             llm = dspy.LM(
                 model=f"groq/{model}",
-                api_key=api_key,
+                api_key=actual_api_key,
                 max_tokens=150
             )
         else:
             raise ValueError(f"Unsupported provider: {provider}")
-        
+
         return llm
+
+    def _get_api_key_for_provider(self, provider: str) -> str:
+        """Get API key from environment variables for the given provider."""
+        key_mapping = {
+            "openrouter": "OPENROUTER_API_KEY",
+            "groq": "GROQ_API_KEY",
+            "langsmith": "LANGSMITH_API_KEY"
+        }
+
+        env_var = key_mapping.get(provider)
+        if env_var:
+            return os.getenv(env_var, "")
+
+        return ""
 
     def llm_as_a_judge_metric(self, generated_answer: str, ground_truth_answer: str, question: str = "") -> float:
         """

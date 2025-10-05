@@ -68,7 +68,16 @@ Make sure you have the following installed:
     cd Prompt-Engineering-Studio
     ```
 
-2.  **Set up the Backend:**
+2.  **Configure Environment Variables:**
+    ```powershell
+    # Copy the example environment file
+    cp .env .env.local
+
+    # Edit .env.local with your actual API keys
+    notepad .env.local
+    ```
+
+3.  **Set up the Backend:**
     ```powershell
     # Navigate to the backend directory
     cd backend
@@ -78,13 +87,13 @@ Make sure you have the following installed:
     .\.venv\Scripts\Activate.ps1
 
     # Install the required packages
-    uv pip install fastapi uvicorn[standard] websockets python-dotenv langchain dspy-ai pandas python-multipart
+    uv pip install fastapi uvicorn[standard] websockets python-dotenv dspy-ai pandas python-multipart
 
     # (Optional) Create a requirements.txt file
     uv pip freeze > requirements.txt
     ```
 
-3.  **Set up the Frontend:**
+4.  **Set up the Frontend:**
     ```powershell
     # Navigate to the frontend directory from the root
     cd frontend
@@ -109,6 +118,55 @@ You will need two separate terminals to run both the backend and frontend server
     * Start the development server: `npm run dev`
     * The UI will be available at `http://localhost:5173`
 
+### API Key Configuration
+
+The application supports multiple LLM providers and requires API keys for external services. Configure your API keys using environment variables:
+
+#### Required API Keys
+
+1. **LangSmith API Key** (for accessing LangChain Hub templates)
+   - Get from: https://smith.langchain.com/settings
+   - Environment variable: `LANGSMITH_API_KEY`
+
+2. **Groq API Key** (for fast LLM inference)
+   - Get from: https://console.groq.com/keys
+   - Environment variable: `GROQ_API_KEY`
+
+3. **OpenRouter API Key** (for accessing various LLM models)
+   - Get from: https://openrouter.ai/keys
+   - Environment variable: `OPENROUTER_API_KEY`
+
+#### Setup Instructions
+
+1. **Copy the environment file:**
+   ```bash
+   cp .env .env.local
+   ```
+
+2. **Edit with your API keys:**
+   ```bash
+   # Windows
+   notepad .env.local
+
+   # macOS/Linux
+   nano .env.local
+   ```
+
+3. **Fill in your actual API keys:**
+   ```env
+   LANGSMITH_API_KEY=lsv2_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   GROQ_API_KEY=gsk_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   OPENROUTER_API_KEY=sk-or-v1-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+   ```
+
+4. **Restart the backend server** to load the new environment variables.
+
+#### Provider Requirements
+
+- **Ollama**: No API key required (local inference)
+- **OpenRouter/Groq**: API keys required for cloud inference
+- **LangSmith**: API key required for accessing template hub
+
 ### Using LLM-as-a-Refiner
 
 The application now includes an advanced LLM-as-a-Refiner feature for enhanced pattern detection accuracy:
@@ -116,7 +174,7 @@ The application now includes an advanced LLM-as-a-Refiner feature for enhanced p
 1. **Enable the Feature:** In the Pattern Analysis panel, toggle "🤖 Use LLM Refiner"
 2. **Configure LLM Provider:** Select your preferred provider (Ollama, OpenRouter, or Groq)
 3. **Set Model:** Enter the model name (e.g., `gemma:2b` for Ollama)
-4. **Add API Key:** For OpenRouter/Groq, provide your API key
+4. **API Key Handling:** The system automatically uses environment variables or provided keys
 5. **Enhanced Analysis:** The system will now use LLM refinement for improved pattern detection accuracy
 
 **Note:** This feature requires a running LLM service (Ollama) or valid API credentials for cloud providers.

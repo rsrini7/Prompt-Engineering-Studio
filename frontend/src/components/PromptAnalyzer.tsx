@@ -270,11 +270,8 @@ const PromptAnalyzer = () => {
             setOptimizationStatus('error');
             return;
         }
-        if ((currentProvider === 'openrouter' || currentProvider === 'groq') && !currentApiKey.trim()) {
-            setOptimizationError(`Please enter an API key for ${currentProvider}.`);
-            setOptimizationStatus('error');
-            return;
-        }
+        // Note: API key validation is handled by the backend, which will fall back to environment variables
+        // The frontend allows proceeding without manual API key entry to support .env.local configuration
 
         // Check cost estimation and confirm if expensive (cloud providers)
         if (costEstimation && !costEstimation.error && currentProvider !== 'ollama' && costEstimation.total_cost_usd > 0.001) {
@@ -430,6 +427,23 @@ const PromptAnalyzer = () => {
                                    width: '150px'
                                }}
                            />
+                           {(refinerProvider === 'openrouter' || refinerProvider === 'groq') && (
+                               <input
+                                   type="password"
+                                   value={refinerApiKey}
+                                   onChange={(e) => setRefinerApiKey(e.target.value)}
+                                   placeholder={`Optional - uses ${refinerProvider.toUpperCase()}_API_KEY from .env.local`}
+                                   style={{
+                                       padding: '0.25rem 0.5rem',
+                                       backgroundColor: 'var(--background-card)',
+                                       color: 'var(--text-primary)',
+                                       border: '1px solid var(--border-color)',
+                                       borderRadius: '4px',
+                                       fontSize: '0.8rem',
+                                       width: '200px'
+                                   }}
+                               />
+                           )}
                        </div>
                    )}
                </div>
@@ -696,6 +710,9 @@ const PromptAnalyzer = () => {
                                Provider: {currentProvider} | Model: {currentModel}
                                {useLlmRefiner && " (configured above)"}
                                {!useLlmRefiner && " (using defaults)"}
+                           </div>
+                           <div style={{ fontSize: '0.8rem', color: 'var(--primary-accent)', marginTop: '0.5rem', fontWeight: '500' }}>
+                               💡 API keys are automatically loaded from .env.local
                            </div>
                        </div>
 

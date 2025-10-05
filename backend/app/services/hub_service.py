@@ -177,7 +177,7 @@ class HubService:
                 # Check if LangSmith API key is available
                 langsmith_api_key = os.getenv("LANGSMITH_API_KEY")
                 if not langsmith_api_key:
-                    print("LangSmith API key not found, using local templates")
+                    print("LangSmith API key not found in environment variables, using local templates")
                 else:
                     print(f"Attempting to fetch {template_slug} from LangSmith...")
                     client = Client()
