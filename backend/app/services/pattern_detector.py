@@ -2,6 +2,8 @@ import re
 from typing import List, Dict, Tuple
 from dataclasses import dataclass
 import json
+import dspy
+from ..services.dspy_service import DspyService
 
 from ..models.analysis import PatternMatch
 
@@ -398,6 +400,144 @@ Ensure each component is addressed thoroughly."""
         }
         
         return templates.get(pattern_name, "Template not available for this pattern.")
+
+    def refine_patterns_with_llm(self, original_prompt: str, detected_patterns: Dict[str, PatternMatch],
+                                provider: str = "ollama", model: str = "gemma:2b", api_key: str = None) -> Dict[str, PatternMatch]:
+        """
+        Use an LLM to refine pattern detection results.
+
+        Args:
+            original_prompt: The user's original prompt
+            detected_patterns: Patterns detected by rule-based system
+            provider: LLM provider ("ollama", "openrouter", "groq")
+            model: Model name to use
+            api_key: API key if required
+
+        Returns:
+            Refined pattern detection results
+        """
+        # Create meta-prompt for LLM review
+        meta_prompt = self._create_refinement_meta_prompt(original_prompt, detected_patterns)
+
+        try:
+            # Configure LLM
+            dspy_service = DspyService()
+            dspy_service.configure_llm(provider, model, api_key)
+
+            # Create DSPy signature for pattern refinement
+            class PatternRefinementSignature(dspy.Signature):
+                """Refine prompt pattern detection results."""
+                meta_prompt = dspy.InputField()
+                refined_json = dspy.OutputField(desc="JSON object with refined pattern analysis")
+
+            # Get LLM response
+            refinement_program = dspy.Predict(PatternRefinementSignature)
+            response = refinement_program(meta_prompt=meta_prompt)
+
+            # Parse and return refined results
+            return self._parse_llm_refinement_response(response.refined_json, detected_patterns)
+
+        except Exception as e:
+            print(f"LLM refinement failed: {e}")
+            # Fall back to original patterns if LLM refinement fails
+            return detected_patterns
+
+    def _create_refinement_meta_prompt(self, original_prompt: str, detected_patterns: Dict[str, PatternMatch]) -> str:
+        """Create a meta-prompt for LLM pattern refinement."""
+
+        # List all available patterns
+        available_patterns = list(self.patterns.keys())
+        available_patterns_str = "\n".join(f"- {pattern}" for pattern in available_patterns)
+
+        # Format detected patterns
+        detected_str = ""
+        for name, match in detected_patterns.items():
+            detected_str += f"""
+Pattern: {name}
+Confidence: {match.confidence}
+Description: {match.description}
+Evidence: {', '.join(match.evidence[:2])}
+Category: {match.category}
+---
+"""
+
+        meta_prompt = f"""
+You are an expert prompt engineering analyst. Review the following prompt and the patterns detected by an automated system.
+
+**Original Prompt:**
+{original_prompt}
+
+**Automatically Detected Patterns:**
+{detected_str}
+
+**Available Pattern Types:**
+{available_patterns_str}
+
+**Your Task:**
+Review the original prompt and the detected patterns. Then:
+
+1. **Correct any mistakes** in the automated detection
+2. **Add any missing patterns** from the available list that should be detected
+3. **Remove patterns** that don't actually apply
+4. **Adjust confidence scores** (0.0-1.0) based on how well each pattern fits
+5. **Add evidence** for each pattern you include
+
+**Response Format:**
+Return a JSON object in this exact format:
+{{
+    "patterns": {{
+        "pattern_name": {{
+            "confidence": 0.8,
+            "evidence": ["evidence 1", "evidence 2"],
+            "description": "pattern description",
+            "category": "pattern category"
+        }}
+    }}
+}}
+
+**Guidelines:**
+- Only include patterns that are actually present in the prompt
+- Focus on the most relevant and confident patterns (aim for 3-8 patterns max)
+- Provide specific evidence from the prompt text
+- Be conservative with high confidence scores (0.8+ only for very clear matches)
+- Consider pattern interactions and hierarchies
+
+**Important:** Respond ONLY with the JSON object, no other text.
+"""
+
+        return meta_prompt
+
+    def _parse_llm_refinement_response(self, llm_response: str, fallback_patterns: Dict[str, PatternMatch]) -> Dict[str, PatternMatch]:
+        """Parse the LLM's JSON response and create PatternMatch objects."""
+        try:
+            # Clean the response (remove markdown formatting if present)
+            cleaned_response = llm_response.strip()
+            if cleaned_response.startswith("```json"):
+                cleaned_response = cleaned_response[7:]
+            if cleaned_response.endswith("```"):
+                cleaned_response = cleaned_response[:-3]
+            cleaned_response = cleaned_response.strip()
+
+            # Parse JSON
+            parsed = json.loads(cleaned_response)
+
+            # Convert to PatternMatch objects
+            refined_patterns = {}
+            for pattern_name, pattern_data in parsed.get("patterns", {}).items():
+                if pattern_name in self.patterns:  # Only include known patterns
+                    refined_patterns[pattern_name] = PatternMatch(
+                        pattern=pattern_name,
+                        confidence=float(pattern_data.get("confidence", 0.0)),
+                        evidence=pattern_data.get("evidence", []),
+                        description=pattern_data.get("description", self.patterns[pattern_name]["description"]),
+                        category=pattern_data.get("category", self.patterns[pattern_name]["category"])
+                    )
+
+            return refined_patterns if refined_patterns else fallback_patterns
+
+        except (json.JSONDecodeError, KeyError, ValueError) as e:
+            print(f"Failed to parse LLM response: {e}")
+            return fallback_patterns
 
 
 # Example usage

@@ -23,6 +23,7 @@ An open-source IDE for designing, analyzing, and optimizing LLM prompts. This to
 ## ✨ Key Features
 
 * **Real-time Pattern Analysis:** Instantly identifies common prompt engineering patterns (like Zero-Shot, Role Prompting, Chain-of-Thought) as you type.
+* **LLM-as-a-Refiner:** Advanced pattern detection accuracy using LLM refinement for enhanced analysis precision (optional toggle).
 * **Intelligent Template Suggestions:** Recommends relevant prompt templates from LangChain Hub based on the detected patterns in your prompt.
 * **Automated Prompt Optimization:** Uses **DSPy** to automatically optimize your prompts by generating few-shot examples from a small dataset you provide.
 * **Modern UI:** A clean, responsive, dark-themed interface built for an efficient and pleasant workflow.
@@ -105,6 +106,18 @@ You will need two separate terminals to run both the backend and frontend server
     * Start the development server: `npm run dev`
     * The UI will be available at `http://localhost:5173`
 
+### Using LLM-as-a-Refiner
+
+The application now includes an advanced LLM-as-a-Refiner feature for enhanced pattern detection accuracy:
+
+1. **Enable the Feature:** In the Pattern Analysis panel, toggle "🤖 Use LLM Refiner"
+2. **Configure LLM Provider:** Select your preferred provider (Ollama, OpenRouter, or Groq)
+3. **Set Model:** Enter the model name (e.g., `gemma:2b` for Ollama)
+4. **Add API Key:** For OpenRouter/Groq, provide your API key
+5. **Enhanced Analysis:** The system will now use LLM refinement for improved pattern detection accuracy
+
+**Note:** This feature requires a running LLM service (Ollama) or valid API credentials for cloud providers.
+
 ---
 
 ## 📊 Project Status
@@ -121,6 +134,10 @@ This is what has been successfully built and is currently working in the applica
 * **Basic Guardrails:** The DSPy optimizer is configured with basic limits on the number of examples to generate (`max_boot_strapped_demos`).
 * **Comparison UI:** A polished, side-by-side view to clearly compare the original prompt with the optimized version.
 
+### 🚀 Completed (v1.1 - Enhanced AI Features)
+
+* **LLM-as-a-Refiner:** Advanced pattern detection accuracy using LLM refinement for enhanced analysis precision with optional toggle in Pattern Analysis panel.
+
 ---
 
 ## 🗺️ Planned Future Features
@@ -133,7 +150,6 @@ This is the roadmap for what can be built on top of the current MVP foundation.
 * **Export Options:** Buttons to export the final, optimized prompt as a ready-to-use JSON object or Python script.
 
 ### Advanced AI & Optimization
-* **LLM-as-a-Refiner:** An optional toggle to use a second LLM call to improve the accuracy and confidence of the initial pattern detection.
 * **Advanced DSPy Metrics (LLM-as-a-Judge):** The ability to optimize prompts against qualitative metrics like "style," "engagement," or "safety," not just exact matches.
 * **Cost Estimation (Human in the Loop):** A feature that estimates the potential cost of a DSPy optimization job and asks the user for confirmation before running.
 * **Configurable Guardrails & Timeouts:** A UI to allow users to set their own limits on optimization time, LLM calls, or iterations to better manage resources.

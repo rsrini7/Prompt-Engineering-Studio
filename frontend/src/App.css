@@ -160,6 +160,20 @@ button:disabled { background-color: #555; cursor: not-allowed; }
 
 .error-text { color: var(--error-color); }
 
+/* --- LLM Refiner Controls --- */
+.analysis-controls {
+   margin-bottom: 1.5rem;
+}
+
+.llm-refiner-config {
+   animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+   from { opacity: 0; transform: translateY(-10px); }
+   to { opacity: 1; transform: translateY(0); }
+}
+
 .input-label {
   font-size: 0.9rem;
   font-weight: 500;

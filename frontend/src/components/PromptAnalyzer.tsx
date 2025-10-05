@@ -38,15 +38,20 @@ const PromptAnalyzer = () => {
     const [optimizationResult, setOptimizationResult] = useState<OptimizationResult | null>(null);
     const [optimizationError, setOptimizationError] = useState<string>('');
 
+    // --- State for LLM refiner ---
+    const [useLlmRefiner, setUseLlmRefiner] = useState<boolean>(false);
+    const [refinerProvider, setRefinerProvider] = useState<string>('ollama');
+    const [refinerModel, setRefinerModel] = useState<string>('gemma:2b');
+    const [refinerApiKey, setRefinerApiKey] = useState<string>('');
+
     const [provider, setProvider] = useState<string>('ollama');
     const [model, setModel] = useState<string>('gemma:2b');
     const [apiKey, setApiKey] = useState<string>('');
 
-    // This useEffect hook handles the real-time analysis and suggestions
-    useEffect(() => {
+    // Manual pattern analysis trigger
+    const handleAnalyzeClick = async () => {
         if (!prompt.trim()) {
-            setResults(null);
-            setSuggestions([]);
+            setError('Please enter a prompt first.');
             return;
         }
 
@@ -54,31 +59,38 @@ const PromptAnalyzer = () => {
         setError('');
         setSuggestions([]);
 
-        const handler = setTimeout(() => {
-            axios.post<AnalysisResponse>('http://127.0.0.1:8000/api/analyze', { prompt })
-                .then(response => {
-                    const analysisResults = response.data;
-                    setResults(analysisResults);
-                    if (analysisResults && Object.keys(analysisResults.patterns).length > 0) {
-                        return axios.post('http://127.0.0.1:8000/api/templates/suggest', analysisResults);
-                    }
-                })
-                .then(suggestionResponse => {
-                    if (suggestionResponse) {
-                        setSuggestions(suggestionResponse.data.suggestions);
-                    }
-                })
-                .catch(err => {
-                    setError('Failed to fetch data. Make sure the backend is running.');
-                    console.error(err);
-                })
-                .finally(() => {
-                    setIsLoading(false);
-                });
-        }, 500);
+        try {
+            const formData = new FormData();
+            formData.append('prompt', prompt);
+            formData.append('use_llm_refiner', useLlmRefiner.toString());
+            formData.append('llm_provider', refinerProvider);
+            formData.append('llm_model', refinerModel);
+            formData.append('llm_api_key', refinerApiKey);
 
-        return () => clearTimeout(handler);
-    }, [prompt]);
+            const response = await axios.post<AnalysisResponse>('http://127.0.0.1:8000/api/analyze', formData);
+            const analysisResults = response.data;
+            setResults(analysisResults);
+
+            if (analysisResults && Object.keys(analysisResults.patterns).length > 0) {
+                const suggestionResponse = await axios.post('http://127.0.0.1:8000/api/templates/suggest', analysisResults);
+                setSuggestions(suggestionResponse.data.suggestions);
+            }
+        } catch (err) {
+            setError('Failed to fetch data. Make sure the backend is running.');
+            console.error(err);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // Clear results when LLM refiner settings change
+    useEffect(() => {
+        if (useLlmRefiner) {
+            setResults(null);
+            setSuggestions([]);
+            setError('');
+        }
+    }, [useLlmRefiner, refinerProvider, refinerModel, refinerApiKey]);
 
     // Handler function for the optimize button
     const handleOptimizeClick = async () => {
@@ -166,6 +178,125 @@ const PromptAnalyzer = () => {
                 <div className="analysis-column">
                     <div className="results-panel">
                         <h2 className="sub-header">Pattern Analysis</h2>
+
+                        {/* Pattern Analysis Controls */}
+                        <div className="analysis-controls" style={{ marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border-color)' }}>
+                            {/* LLM Refiner Toggle */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={useLlmRefiner}
+                                        onChange={(e) => setUseLlmRefiner(e.target.checked)}
+                                        style={{ width: 'auto' }}
+                                    />
+                                    <span>🤖 Use LLM Refiner</span>
+                                </label>
+                                {useLlmRefiner && (
+                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                        (Enhanced pattern detection accuracy)
+                                    </span>
+                                )}
+                            </div>
+
+                            {/* Analyze Button */}
+                            <button
+                                onClick={handleAnalyzeClick}
+                                disabled={isLoading || !prompt.trim()}
+                                style={{
+                                    backgroundColor: 'var(--primary-accent)',
+                                    color: 'white',
+                                    border: 'none',
+                                    padding: '0.75rem 1.5rem',
+                                    borderRadius: '8px',
+                                    cursor: isLoading || !prompt.trim() ? 'not-allowed' : 'pointer',
+                                    fontSize: '0.9rem',
+                                    fontWeight: '500',
+                                    opacity: isLoading || !prompt.trim() ? 0.6 : 1,
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.5rem'
+                                }}
+                            >
+                                {isLoading ? '🔍 Analyzing...' : '🔍 Analyze Patterns'}
+                            </button>
+
+                            {!prompt.trim() && (
+                                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginLeft: '0.5rem' }}>
+                                    Enter a prompt to analyze
+                                </span>
+                            )}
+
+                            {/* LLM Refiner Configuration */}
+                            {useLlmRefiner && (
+                                <div className="llm-refiner-config" style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                    <div>
+                                        <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                                            Provider
+                                        </label>
+                                        <select
+                                            value={refinerProvider}
+                                            onChange={(e) => setRefinerProvider(e.target.value)}
+                                            style={{
+                                                width: '100%',
+                                                padding: '0.5rem',
+                                                backgroundColor: 'var(--background-card)',
+                                                color: 'var(--text-primary)',
+                                                border: '1px solid var(--border-color)',
+                                                borderRadius: '4px'
+                                            }}
+                                        >
+                                            <option value="ollama">Ollama (Local)</option>
+                                            <option value="openrouter">OpenRouter</option>
+                                            <option value="groq">Groq</option>
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                                            Model
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={refinerModel}
+                                            onChange={(e) => setRefinerModel(e.target.value)}
+                                            placeholder={refinerProvider === 'ollama' ? 'e.g., gemma:2b' : 'e.g., meta-llama/llama-3-8b-instruct'}
+                                            style={{
+                                                width: '100%',
+                                                padding: '0.5rem',
+                                                backgroundColor: 'var(--background-card)',
+                                                color: 'var(--text-primary)',
+                                                border: '1px solid var(--border-color)',
+                                                borderRadius: '4px'
+                                            }}
+                                        />
+                                    </div>
+
+                                    {(refinerProvider === 'openrouter' || refinerProvider === 'groq') && (
+                                        <div>
+                                            <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                                                API Key
+                                            </label>
+                                            <input
+                                                type="password"
+                                                value={refinerApiKey}
+                                                onChange={(e) => setRefinerApiKey(e.target.value)}
+                                                placeholder={`Your ${refinerProvider} API Key`}
+                                                style={{
+                                                    width: '100%',
+                                                    padding: '0.5rem',
+                                                    backgroundColor: 'var(--background-card)',
+                                                    color: 'var(--text-primary)',
+                                                    border: '1px solid var(--border-color)',
+                                                    borderRadius: '4px'
+                                                }}
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
                         {isLoading && <p>Analyzing...</p>}
                         {error && <p className="error-text">{error}</p>}
                         {results && !isLoading && Object.keys(results.patterns).length > 0 && (
