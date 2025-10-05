@@ -58,7 +58,7 @@ class DspyService:
 
         if provider == "ollama":
             # For Ollama, use LiteLLM format with provider prefix
-            llm = dspy.LM(model=f"ollama/{model}", max_tokens=150, api_base='http://localhost:11434', api_key='')
+            llm = dspy.LM(model=f"ollama/{model}", max_tokens=1000, api_base='http://localhost:11434', api_key='')
         elif provider == "openrouter":
             # OpenRouter uses an OpenAI-compatible API
             if not actual_api_key:
@@ -67,7 +67,7 @@ class DspyService:
             llm = dspy.LM(
                 model=f"openrouter/{model}",
                 api_key=actual_api_key,
-                max_tokens=150
+                max_tokens=1000
             )
         elif provider == "groq":
             # Groq also uses an OpenAI-compatible API
@@ -77,7 +77,7 @@ class DspyService:
             llm = dspy.LM(
                 model=f"groq/{model}",
                 api_key=actual_api_key,
-                max_tokens=150
+                max_tokens=1000
             )
         else:
             raise ValueError(f"Unsupported provider: {provider}")

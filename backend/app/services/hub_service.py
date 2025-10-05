@@ -312,14 +312,20 @@ Return only the filled-in template text, no explanations or additional content.
                     merge_program = dspy.Predict(TemplateMergeSignature)
                     response = merge_program(merge_prompt=merge_prompt)
 
-                    merged_content = response.merged_template.strip()
+                    # Check if response is valid
+                    if response and response.merged_template:
+                        merged_content = response.merged_template.strip()
 
-                    # Basic validation - ensure we got a reasonable response
-                    if len(merged_content) > 50 and any(var in merged_content for var in variables):
-                        return merged_content
+                        # Basic validation - ensure we got a reasonable response
+                        if len(merged_content) > 50 and any(var in merged_content for var in variables):
+                            return merged_content
+                        else:
+                            # If LLM response seems poor, return original prompt
+                            print("LLM template merging produced poor result, returning original prompt")
+                            return user_prompt
                     else:
-                        # If LLM response seems poor, return original prompt
-                        print("LLM template merging produced poor result, returning original prompt")
+                        # If LLM response is None or empty, return original prompt
+                        print("LLM template merging returned None or empty response, returning original prompt")
                         return user_prompt
 
                 except Exception as e:
