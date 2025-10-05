@@ -70,6 +70,7 @@ const PromptAnalyzer = () => {
     const [templatePreviews, setTemplatePreviews] = useState<Record<string, string>>({});
     const [loadingPreviews, setLoadingPreviews] = useState<Record<string, boolean>>({});
     const [previewErrors, setPreviewErrors] = useState<Record<string, string>>({});
+    const [mergedTemplates, setMergedTemplates] = useState<Record<string, string>>({});
 
     // Manual pattern analysis trigger
     const handleAnalyzeClick = async () => {
@@ -176,8 +177,8 @@ const PromptAnalyzer = () => {
         }
     };
 
-    // Handler function for template merging
-    const handleMergeTemplate = async (templateSlug: string) => {
+    // Handler function for template preview (doesn't modify original prompt)
+    const handlePreviewTemplate = async (templateSlug: string) => {
         if (!prompt.trim()) {
             setError('Please enter a prompt first.');
             return;
@@ -195,17 +196,33 @@ const PromptAnalyzer = () => {
             const response = await axios.post('http://127.0.0.1:8000/api/templates/merge', formData);
             const mergedTemplate = response.data.merged_template;
 
-            // Replace the prompt with the merged template
-            setPrompt(mergedTemplate);
+            // Store in merged templates for preview (don't modify original prompt)
+            setMergedTemplates(prev => ({
+                ...prev,
+                [templateSlug]: mergedTemplate
+            }));
 
-            // Switch to analyze tab to see the new prompt
-            setActiveTab('analyze');
+            // Clear any previous errors
+            setPreviewErrors(prev => {
+                const newErrors = { ...prev };
+                delete newErrors[templateSlug];
+                return newErrors;
+            });
 
         } catch (err) {
-            setError('Failed to merge template. Please try again.');
+            setError('Failed to preview template merge. Please try again.');
             console.error(err);
         } finally {
             setIsMergingTemplate(false);
+        }
+    };
+
+    // Handler function to apply merged template to original prompt
+    const handleApplyMergedTemplate = (templateSlug: string) => {
+        const mergedContent = mergedTemplates[templateSlug];
+        if (mergedContent) {
+            setPrompt(mergedContent);
+            setActiveTab('analyze');
         }
     };
 
@@ -498,6 +515,15 @@ const PromptAnalyzer = () => {
                            borderRadius: '12px'
                        }}>
                            <h2 className="sub-header" style={{ marginBottom: '1rem' }}>💡 Template Suggestions</h2>
+                           <div style={{
+                               fontSize: '0.8rem',
+                               color: 'var(--text-secondary)',
+                               marginBottom: '1rem',
+                               fontStyle: 'italic',
+                               textAlign: 'center'
+                           }}>
+                               💡 Click "Preview Merge" to see how your prompt merges with each template, then use "Merge & Use" below to apply it.
+                           </div>
 
                            <div className="suggestions-list">
                                {suggestions.slice(0, 6).map((suggestion) => (
@@ -587,10 +613,10 @@ const PromptAnalyzer = () => {
 
                                        <button
                                            className="merge-button"
-                                           onClick={() => handleMergeTemplate(suggestion.name)}
+                                           onClick={() => handlePreviewTemplate(suggestion.name)}
                                            disabled={isMergingTemplate}
                                        >
-                                           {isMergingTemplate ? '🔄 Merging...' : '🚀 Merge & Use'}
+                                           {isMergingTemplate ? '🔄 Previewing...' : '🚀 Preview Merge'}
                                        </button>
                                    </div>
                                ))}
@@ -609,6 +635,110 @@ const PromptAnalyzer = () => {
                                    +{suggestions.length - 6} more suggestions available
                                </div>
                            )}
+                       </div>
+                   )}
+
+                   {/* Updated Prompt Preview Section */}
+                   {Object.keys(mergedTemplates).length > 0 && (
+                       <div className="results-panel" style={{
+                           backgroundColor: 'var(--background-panel)',
+                           border: '1px solid var(--primary-accent)',
+                           borderRadius: '12px',
+                           marginTop: '1.5rem'
+                       }}>
+                           <h2 className="sub-header" style={{
+                               marginBottom: '1rem',
+                               color: 'var(--primary-accent)',
+                               display: 'flex',
+                               alignItems: 'center',
+                               gap: '0.5rem'
+                           }}>
+                               🔄 Updated Prompt Preview
+                           </h2>
+
+                           <div style={{
+                               fontSize: '0.9rem',
+                               color: 'var(--text-secondary)',
+                               marginBottom: '1rem',
+                               fontStyle: 'italic'
+                           }}>
+                               Your prompt after merging with templates:
+                           </div>
+
+                           {Object.entries(mergedTemplates).map(([templateSlug, mergedContent]) => (
+                               <div key={templateSlug} style={{
+                                   backgroundColor: 'var(--background-dark)',
+                                   border: '1px solid var(--border-color)',
+                                   borderRadius: '8px',
+                                   padding: '1rem',
+                                   marginBottom: '1rem'
+                               }}>
+                                   <div style={{
+                                       fontSize: '0.8rem',
+                                       color: 'var(--primary-accent)',
+                                       marginBottom: '0.5rem',
+                                       fontWeight: 'bold'
+                                   }}>
+                                       📝 Merged with: {templateSlug}
+                                   </div>
+
+                                   <div style={{
+                                       backgroundColor: 'var(--background-card)',
+                                       border: '1px solid var(--border-color)',
+                                       borderRadius: '6px',
+                                       padding: '0.75rem',
+                                       fontSize: '0.85rem',
+                                       lineHeight: '1.4',
+                                       whiteSpace: 'pre-wrap',
+                                       wordBreak: 'break-word',
+                                       maxHeight: '200px',
+                                       overflowY: 'auto',
+                                       fontFamily: 'monospace'
+                                   }}>
+                                       {mergedContent}
+                                   </div>
+
+                                   <div style={{
+                                       marginTop: '0.75rem',
+                                       display: 'flex',
+                                       gap: '0.5rem',
+                                       justifyContent: 'flex-end'
+                                   }}>
+                                       <button
+                                           onClick={() => {
+                                               // Copy to clipboard
+                                               navigator.clipboard.writeText(mergedContent);
+                                               // You could add a toast notification here
+                                           }}
+                                           style={{
+                                               backgroundColor: 'var(--background-card)',
+                                               color: 'var(--text-primary)',
+                                               border: '1px solid var(--border-color)',
+                                               padding: '0.5rem 1rem',
+                                               borderRadius: '6px',
+                                               cursor: 'pointer',
+                                               fontSize: '0.8rem'
+                                           }}
+                                       >
+                                           📋 Copy
+                                       </button>
+                                       <button
+                                           onClick={() => handleApplyMergedTemplate(templateSlug)}
+                                           style={{
+                                               backgroundColor: 'var(--primary-accent)',
+                                               color: 'white',
+                                               border: 'none',
+                                               padding: '0.5rem 1rem',
+                                               borderRadius: '6px',
+                                               cursor: 'pointer',
+                                               fontSize: '0.8rem'
+                                           }}
+                                       >
+                                           🚀 Merge & Use
+                                       </button>
+                                   </div>
+                               </div>
+                           ))}
                        </div>
                    )}
 
