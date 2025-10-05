@@ -111,20 +111,37 @@ You will need two separate terminals to run both the backend and frontend server
 
 ### ✅ Completed (MVP v1.0)
 
-* **Core UI/UX:** Fully functional two-column layout with a polished dark theme.
-* **Pattern Detector:** Rule-based detector for identifying over 20 common prompt patterns.
-* **Template Suggester:** Ranks and suggests templates from a predefined map based on pattern confidence scores.
-* **DSPy Optimization:** Integrated `BootstrapFewShot` optimizer that accepts a prompt and a CSV/JSONL dataset.
-* **Comparison View:** A side-by-side view to compare the original prompt with the DSPy-optimized version.
+This is what has been successfully built and is currently working in the application.
 
-### 📝 Planned (Future Features)
+* **Core Application Framework:** A robust backend using **FastAPI** and a dynamic frontend using **React** and TypeScript.
+* **Real-time Pattern Analysis:** An integrated rule-based system that detects over 20 prompt engineering patterns as the user types.
+* **Template Suggestions:** A system that suggests relevant **LangChain Hub** templates based on a weighted score of the detected patterns.
+* **Flexible LLM Provider Support:** The UI and backend are configured to use **Ollama (local), OpenRouter, and Groq**.
+* **DSPy-Powered Optimization:** The core optimization engine is built using **DSPy's `BootstrapFewShot`**, capable of improving a prompt from a user-provided CSV or JSONL dataset.
+* **Basic Guardrails:** The DSPy optimizer is configured with basic limits on the number of examples to generate (`max_boot_strapped_demos`).
+* **Comparison UI:** A polished, side-by-side view to clearly compare the original prompt with the optimized version.
 
-* **LLM-as-a-Refiner:** An optional toggle to use an LLM to enhance the accuracy of pattern detection.
-* **Advanced DSPy Metrics:** Integrate an "LLM-as-a-Judge" to allow optimization for qualitative metrics (e.g., style, engagement, safety).
-* **UI-Based Dataset Builder:** A simple form to help users create small test datasets directly in the UI.
-* **Prompt Version History:** Allow users to save different versions of a prompt and track changes over time.
-* **Export Options:** Add buttons to export the final prompt as a JSON object or a Python script.
-* **User Accounts & Collaboration:** Introduce user authentication, saved prompts, and shared workspaces.
+---
+
+## 🗺️ Planned Future Features
+
+This is the roadmap for what can be built on top of the current MVP foundation.
+
+### Core Functionality Enhancements
+* **Intelligent Template Merging:** A feature to automatically map a user's original prompt content into the variables of a selected Hub template.
+* **UI-Based Dataset Builder:** A simple form within the application to help users create small test datasets from scratch without needing a CSV file.
+* **Export Options:** Buttons to export the final, optimized prompt as a ready-to-use JSON object or Python script.
+
+### Advanced AI & Optimization
+* **LLM-as-a-Refiner:** An optional toggle to use a second LLM call to improve the accuracy and confidence of the initial pattern detection.
+* **Advanced DSPy Metrics (LLM-as-a-Judge):** The ability to optimize prompts against qualitative metrics like "style," "engagement," or "safety," not just exact matches.
+* **Cost Estimation (Human in the Loop):** A feature that estimates the potential cost of a DSPy optimization job and asks the user for confirmation before running.
+* **Configurable Guardrails & Timeouts:** A UI to allow users to set their own limits on optimization time, LLM calls, or iterations to better manage resources.
+
+### Platform & Workflow
+* **Prompt Version History:** The ability to save different versions of a prompt, add notes, and easily revert to previous versions.
+* **A/B Testing Framework:** A dedicated UI to compare two different prompt versions against a dataset and see which one performs better on key metrics.
+* **User Accounts & Collaboration:** A full authentication system allowing users to save their prompts to the cloud, create projects, and share them with team members.
 
 ---
 
