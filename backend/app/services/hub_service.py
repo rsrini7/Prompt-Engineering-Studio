@@ -1,13 +1,19 @@
-# LangChain Hub has moved to LangSmith - using local templates instead
-# from langchain import hub  # This no longer works as expected
+# LangChain Hub has moved to LangSmith - using LangSmith Client
+try:
+    from langsmith import Client
+    LANGSMITH_AVAILABLE = True
+except ImportError:
+    LANGSMITH_AVAILABLE = False
+    print("LangSmith not available, using fallback templates")
 
 from ..models.analysis import PatternMatch
 from typing import List, Dict
 import re
 import dspy
 from ..services.dspy_service import DspyService
+import os
 
-# Local template repository (more reliable than external hub)
+# Local template repository with popular LangSmith templates
 LOCAL_TEMPLATES = {
     "hwchase17/react-chat": """Thought: {thought}
 Action: {action}
@@ -99,8 +105,8 @@ Instructions: {instructions}
 Please provide your response:"""
 }
 
-# This maps our internal pattern names to popular LangChain Hub prompts.
-# We can expand this list over time.
+# This maps our internal pattern names to popular LangSmith prompts.
+# Updated to use LangSmith format: "owner/repo-name"
 PATTERN_TO_HUB_MAP = {
     "rag": ["rlm/rag-prompt", "langchain-ai/retrieval-qa-chat"],
     "react": ["hwchase17/react-chat", "hwchase17/react-json"],
@@ -154,7 +160,7 @@ class HubService:
 
     def get_template_content(self, template_slug: str) -> str:
         """
-        Fetch the actual content of a template using local repository.
+        Fetch the actual content of a template using LangSmith or local repository.
 
         Args:
             template_slug: The template slug (e.g., "rlm/rag-prompt")
@@ -165,7 +171,29 @@ class HubService:
         if template_slug in TEMPLATE_CACHE:
             return TEMPLATE_CACHE[template_slug]
 
-        # Use local template repository (more reliable than external hub)
+        # Try to fetch from LangSmith if available
+        if LANGSMITH_AVAILABLE:
+            try:
+                # Check if LangSmith API key is available
+                langsmith_api_key = os.getenv("LANGSMITH_API_KEY")
+                if not langsmith_api_key:
+                    print("LangSmith API key not found, using local templates")
+                else:
+                    print(f"Attempting to fetch {template_slug} from LangSmith...")
+                    client = Client()
+                    prompt = client.pull_prompt(template_slug)
+                    content = str(prompt)
+                    print(f"Successfully fetched {template_slug} from LangSmith")
+
+                    # Cache the template content
+                    TEMPLATE_CACHE[template_slug] = content
+                    return content
+
+            except Exception as e:
+                print(f"Failed to fetch template {template_slug} from LangSmith: {e}")
+                print("Using local templates as fallback")
+
+        # Use local template repository as fallback
         if template_slug in LOCAL_TEMPLATES:
             content = LOCAL_TEMPLATES[template_slug]
             TEMPLATE_CACHE[template_slug] = content
@@ -183,7 +211,7 @@ class HubService:
 
 {{input}}
 
-[Template content not available in local repository]"""
+[Template content not available]"""
         TEMPLATE_CACHE[template_slug] = generic_content
         return generic_content
 
