@@ -17,6 +17,8 @@ interface AnalysisResponse {
 interface TemplateSuggestion {
     name: string;
     score: number;
+    content?: string;
+    variables?: string[];
 }
 
 interface OptimizationResult {
@@ -58,6 +60,9 @@ const PromptAnalyzer = () => {
 
     // --- State for tabbed interface ---
     const [activeTab, setActiveTab] = useState<'analyze' | 'optimize'>('analyze');
+
+    // --- State for template merging ---
+    const [isMergingTemplate, setIsMergingTemplate] = useState<boolean>(false);
 
     // Manual pattern analysis trigger
     const handleAnalyzeClick = async () => {
@@ -145,6 +150,39 @@ const PromptAnalyzer = () => {
             });
         } finally {
             setIsEstimatingCost(false);
+        }
+    };
+
+    // Handler function for template merging
+    const handleMergeTemplate = async (templateSlug: string) => {
+        if (!prompt.trim()) {
+            setError('Please enter a prompt first.');
+            return;
+        }
+
+        setIsMergingTemplate(true);
+        try {
+            const formData = new FormData();
+            formData.append('user_prompt', prompt);
+            formData.append('template_slug', templateSlug);
+            formData.append('provider', refinerProvider);
+            formData.append('model', refinerModel);
+            formData.append('api_key', refinerApiKey);
+
+            const response = await axios.post('http://127.0.0.1:8000/api/templates/merge', formData);
+            const mergedTemplate = response.data.merged_template;
+
+            // Replace the prompt with the merged template
+            setPrompt(mergedTemplate);
+
+            // Switch to analyze tab to see the new prompt
+            setActiveTab('analyze');
+
+        } catch (err) {
+            setError('Failed to merge template. Please try again.');
+            console.error(err);
+        } finally {
+            setIsMergingTemplate(false);
         }
     };
 
@@ -431,22 +469,70 @@ const PromptAnalyzer = () => {
                                         )}
                                     </div>
 
-                                    {/* Template Suggestions - Compact View */}
+                                    {/* Template Suggestions - Enhanced View */}
                                     <div className="results-panel" style={{ marginTop: '1rem' }}>
                                         <h2 className="sub-header">💡 Templates</h2>
                                         {isLoading && <p>Loading suggestions...</p>}
                                         {suggestions.length > 0 && !isLoading && (
                                             <div className="suggestions-list">
                                                 {suggestions.slice(0, 3).map((s) => (
-                                                    <div key={s.name} className="suggestion-card">
-                                                        <span className="suggestion-name">{s.name}</span>
-                                                        <span className="suggestion-score">Match: {s.score}%</span>
+                                                    <div key={s.name} className="suggestion-card" style={{
+                                                        display: 'flex',
+                                                        flexDirection: 'column',
+                                                        gap: '0.5rem'
+                                                    }}>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                            <span className="suggestion-name" style={{ fontWeight: 'bold' }}>{s.name}</span>
+                                                            <span className="suggestion-score" style={{
+                                                                backgroundColor: 'var(--primary-accent)',
+                                                                color: 'white',
+                                                                padding: '0.25rem 0.5rem',
+                                                                borderRadius: '12px',
+                                                                fontSize: '0.8rem'
+                                                            }}>
+                                                                {s.score}% match
+                                                            </span>
+                                                        </div>
+
+                                                        {/* Template Preview */}
+                                                        <div style={{
+                                                            fontSize: '0.8rem',
+                                                            color: 'var(--text-secondary)',
+                                                            backgroundColor: 'var(--background-dark)',
+                                                            padding: '0.5rem',
+                                                            borderRadius: '4px',
+                                                            maxHeight: '60px',
+                                                            overflow: 'hidden'
+                                                        }}>
+                                                            Template preview will be loaded...
+                                                        </div>
+
+                                                        {/* Action Buttons */}
+                                                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                                            <button
+                                                                onClick={() => handleMergeTemplate(s.name)}
+                                                                disabled={isMergingTemplate}
+                                                                style={{
+                                                                    backgroundColor: 'var(--primary-accent)',
+                                                                    color: 'white',
+                                                                    border: 'none',
+                                                                    padding: '0.5rem 1rem',
+                                                                    borderRadius: '6px',
+                                                                    cursor: isMergingTemplate ? 'not-allowed' : 'pointer',
+                                                                    fontSize: '0.8rem',
+                                                                    opacity: isMergingTemplate ? 0.6 : 1
+                                                                }}
+                                                            >
+                                                                {isMergingTemplate ? '🔄 Merging...' : '🚀 Merge & Use'}
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 ))}
+
                                                 {suggestions.length > 3 && (
                                                     <div style={{ textAlign: 'center', marginTop: '0.5rem' }}>
                                                         <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                                                            +{suggestions.length - 3} more suggestions
+                                                            +{suggestions.length - 3} more suggestions available
                                                         </span>
                                                     </div>
                                                 )}

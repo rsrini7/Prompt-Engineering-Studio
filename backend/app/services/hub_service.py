@@ -1,6 +1,9 @@
 from langchain import hub
 from ..models.analysis import PatternMatch
 from typing import List, Dict
+import re
+import dspy
+from ..services.dspy_service import DspyService
 
 # This maps our internal pattern names to popular LangChain Hub prompts.
 # We can expand this list over time.
@@ -10,6 +13,9 @@ PATTERN_TO_HUB_MAP = {
     "chain_of_thought": ["rlm/rag-prompt-cot"],
     "role_prompting": ["hwchase17/react-chat", "rlm/rag-prompt"],
 }
+
+# Template content cache for better performance
+TEMPLATE_CACHE = {}
 
 class HubService:
     def get_suggestions(self, detected_patterns: Dict[str, PatternMatch]) -> List[dict]:
@@ -49,5 +55,139 @@ class HubService:
 
         # Sort suggestions from highest score to lowest
         ranked_suggestions.sort(key=lambda x: x["score"], reverse=True)
-        
+
         return ranked_suggestions
+
+    def get_template_content(self, template_slug: str) -> str:
+        """
+        Fetch the actual content of a LangChain Hub template.
+
+        Args:
+            template_slug: The template slug (e.g., "rlm/rag-prompt")
+
+        Returns:
+            The template content as a string
+        """
+        if template_slug in TEMPLATE_CACHE:
+            return TEMPLATE_CACHE[template_slug]
+
+        try:
+            # Pull template from LangChain Hub
+            template = hub.pull(template_slug)
+            content = str(template)
+
+            # Cache the template content
+            TEMPLATE_CACHE[template_slug] = content
+
+            return content
+        except Exception as e:
+            print(f"Failed to fetch template {template_slug}: {e}")
+            return ""
+
+    def get_template_with_metadata(self, template_slug: str) -> Dict:
+        """
+        Get template content along with metadata like variables found.
+
+        Args:
+            template_slug: The template slug
+
+        Returns:
+            Dictionary with template content and metadata
+        """
+        content = self.get_template_content(template_slug)
+
+        if not content:
+            return {"content": "", "variables": [], "error": "Template not found"}
+
+        # Extract variables (common patterns like {variable}, {{variable}}, etc.)
+        variables = set(re.findall(r'\{([^}]+)\}', content))
+
+        return {
+            "content": content,
+            "variables": list(variables),
+            "slug": template_slug,
+            "variable_count": len(variables)
+        }
+
+    def merge_template_with_prompt(self, user_prompt: str, template_slug: str,
+                                  provider: str = "ollama", model: str = "gemma:2b", api_key: str = "") -> str:
+        """
+        Intelligently merge user prompt content into a template using LLM.
+
+        Args:
+            user_prompt: The user's original prompt
+            template_slug: The template to merge into
+            provider: LLM provider for merging
+            model: Model for merging
+            api_key: API key if required
+
+        Returns:
+            The merged template with variables filled in
+        """
+        try:
+            # Get template content and variables
+            template_info = self.get_template_with_metadata(template_slug)
+            template_content = template_info["content"]
+            variables = template_info["variables"]
+
+            if not template_content or not variables:
+                return user_prompt  # Return original if template not available
+
+            # Configure LLM for merging
+            dspy_service = DspyService()
+            llm = dspy_service.configure_llm(provider, model, api_key)
+
+            # Create merging prompt
+            variables_str = ", ".join(f'"{var}"' for var in variables)
+
+            merge_prompt = f"""
+You are an expert prompt engineer. Given the user's prompt and a template with variables, intelligently extract information from the user's prompt and fill in the template variables.
+
+**User's Prompt:**
+{user_prompt}
+
+**Template:**
+{template_content}
+
+**Variables to fill:** {variables_str}
+
+**Instructions:**
+1. Analyze the user's prompt to understand its intent, context, and key elements
+2. For each variable in the template, determine what content from the user's prompt should fill it
+3. If a variable doesn't have a clear mapping, use your best judgment to infer appropriate content
+4. Return only the completed template with variables filled in
+5. Maintain the template's structure and formatting
+
+**Response Format:**
+Return only the filled-in template text, no explanations or additional content.
+"""
+
+            # Use DSPy to get LLM response
+            with dspy.context(lm=llm):
+                try:
+                    # Create a simple signature for template merging
+                    class TemplateMergeSignature(dspy.Signature):
+                        """Merge user prompt into template."""
+                        merge_prompt = dspy.InputField()
+                        merged_template = dspy.OutputField(desc="The template with variables filled in")
+
+                    merge_program = dspy.Predict(TemplateMergeSignature)
+                    response = merge_program(merge_prompt=merge_prompt)
+
+                    merged_content = response.merged_template.strip()
+
+                    # Basic validation - ensure we got a reasonable response
+                    if len(merged_content) > 50 and any(var in merged_content for var in variables):
+                        return merged_content
+                    else:
+                        # If LLM response seems poor, return original prompt
+                        print("LLM template merging produced poor result, returning original prompt")
+                        return user_prompt
+
+                except Exception as e:
+                    print(f"Template merging failed: {e}")
+                    return user_prompt
+
+        except Exception as e:
+            print(f"Template merging error: {e}")
+            return user_prompt

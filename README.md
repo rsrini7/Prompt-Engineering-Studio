@@ -26,6 +26,7 @@ An open-source IDE for designing, analyzing, and optimizing LLM prompts. This to
 * **LLM-as-a-Refiner:** Advanced pattern detection accuracy using LLM refinement for enhanced analysis precision (optional toggle).
 * **Advanced DSPy Metrics:** Support for both exact match and LLM-as-a-Judge (qualitative) optimization metrics.
 * **Cost Estimation & Guardrails:** Real-time cost estimation with configurable iteration limits and cost control features.
+* **Intelligent Template Merging:** Automatically populate LangChain Hub templates with content from user prompts using LLM intelligence.
 * **Intelligent Template Suggestions:** Recommends relevant prompt templates from LangChain Hub based on the detected patterns in your prompt.
 * **Automated Prompt Optimization:** Uses **DSPy** to automatically optimize your prompts by generating few-shot examples from a small dataset you provide.
 * **Modern UI:** A clean, responsive, dark-themed interface built for an efficient and pleasant workflow.
@@ -172,6 +173,35 @@ The application now includes responsible AI features for cost management and opt
 - **Provider Awareness:** Accurate pricing for Ollama, OpenRouter, and Groq
 - **Real-time Updates:** Cost estimation updates as settings change
 
+### Using Intelligent Template Merging
+
+The application now includes AI-powered template population for seamless prompt engineering:
+
+1. **Write Your Prompt:** Enter your prompt in the text area as usual
+
+2. **Run Pattern Analysis:** Click "Analyze" to detect patterns and get template suggestions
+
+3. **Review Templates:** View suggested templates with match scores in the Templates section
+
+4. **Merge & Use:** Click "🚀 Merge & Use" on any template suggestion to:
+   - Automatically extract key information from your prompt
+   - Intelligently fill in template variables (like {context}, {question})
+   - Replace your current prompt with the merged result
+   - Switch to the Analyze tab to see the enhanced prompt
+
+**Template Merging Benefits:**
+- **Intelligent Mapping:** AI understands your intent and maps content to appropriate variables
+- **Time-Saving:** No manual copying and pasting of template variables
+- **Context-Aware:** Preserves the meaning and structure of your original prompt
+- **One-Click Workflow:** Seamless transition from template selection to prompt enhancement
+
+**Template Variables Supported:**
+- **{context}**: Background information and context
+- **{question}**: The main question or task
+- **{format}**: Desired output format or structure
+- **{examples}**: Example inputs/outputs when relevant
+- **Custom variables**: Any template-specific variables are intelligently filled
+
 ---
 
 ## 📊 Project Status
@@ -193,6 +223,7 @@ This is what has been successfully built and is currently working in the applica
 * **LLM-as-a-Refiner:** Advanced pattern detection accuracy using LLM refinement for enhanced analysis precision with optional toggle in Pattern Analysis panel.
 * **Advanced DSPy Metrics:** Support for both exact match and LLM-as-a-Judge (qualitative) optimization metrics for comprehensive prompt evaluation.
 * **Cost Estimation & Guardrails:** Real-time cost estimation with configurable iteration limits and cost control features for responsible AI usage.
+* **Intelligent Template Merging:** Automatically populate LangChain Hub templates with content from user prompts using LLM intelligence.
 
 ---
 
@@ -201,7 +232,6 @@ This is what has been successfully built and is currently working in the applica
 This is the roadmap for what can be built on top of the current MVP foundation.
 
 ### Core Functionality Enhancements
-* **Intelligent Template Merging:** A feature to automatically map a user's original prompt content into the variables of a selected Hub template.
 * **UI-Based Dataset Builder:** A simple form within the application to help users create small test datasets from scratch without needing a CSV file.
 * **Export Options:** Buttons to export the final, optimized prompt as a ready-to-use JSON object or Python script.
 
