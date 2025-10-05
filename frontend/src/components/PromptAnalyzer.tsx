@@ -44,9 +44,11 @@ const PromptAnalyzer = () => {
     const [refinerModel, setRefinerModel] = useState<string>('gemma:2b');
     const [refinerApiKey, setRefinerApiKey] = useState<string>('');
 
+    // --- State for optimization ---
     const [provider, setProvider] = useState<string>('ollama');
     const [model, setModel] = useState<string>('gemma:2b');
     const [apiKey, setApiKey] = useState<string>('');
+    const [metric, setMetric] = useState<string>('exact_match');
 
     // Manual pattern analysis trigger
     const handleAnalyzeClick = async () => {
@@ -123,6 +125,7 @@ const PromptAnalyzer = () => {
         formData.append('provider', provider);
         formData.append('model', model);
         formData.append('api_key', apiKey);
+        formData.append('metric', metric);
 
 
         try {
@@ -328,6 +331,20 @@ const PromptAnalyzer = () => {
                     <div className="results-panel">
                         <h2 className="sub-header">Optimize Prompt</h2>
                         <div className="optimize-controls">
+                            <div style={{ marginBottom: '1rem' }}>
+                                <label className="input-label">Optimization Metric</label>
+                                <select className="select-input" value={metric} onChange={e => setMetric(e.target.value)}>
+                                    <option value="exact_match">Exact Match (Default)</option>
+                                    <option value="llm_as_a_judge">LLM-as-a-Judge (Quality Score)</option>
+                                </select>
+                                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                                    {metric === 'exact_match'
+                                        ? 'Optimizes for exact string matches with ground truth answers.'
+                                        : 'Uses LLM evaluation for qualitative metrics like style, engagement, and clarity.'
+                                    }
+                                </div>
+                            </div>
+
                             <label className="input-label">Provider</label>
                             <select className="select-input" value={provider} onChange={e => setProvider(e.target.value)}>
                                 <option value="ollama">Ollama (Local)</option>

@@ -10,7 +10,8 @@ async def optimize_prompt_endpoint(
     dataset: UploadFile = File(...),
     provider: str = Form(...), # e.g., "ollama", "openrouter", "groq"
     model: str = Form(...),      # e.g., "gemma:2b", "meta-llama/llama-3-8b-instruct"
-    api_key: str = Form(None)
+    api_key: str = Form(None),
+    metric: str = Form("exact_match") # "exact_match" or "llm_as_a_judge"
 ):
     """
     Optimizes a prompt using a provided dataset (CSV or JSONL).
@@ -23,7 +24,8 @@ async def optimize_prompt_endpoint(
             filename=dataset.filename,
             provider=provider,
             model=model,
-            api_key=api_key
+            api_key=api_key,
+            metric=metric
         )
         return {
             "original_prompt": prompt,

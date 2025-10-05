@@ -24,6 +24,7 @@ An open-source IDE for designing, analyzing, and optimizing LLM prompts. This to
 
 * **Real-time Pattern Analysis:** Instantly identifies common prompt engineering patterns (like Zero-Shot, Role Prompting, Chain-of-Thought) as you type.
 * **LLM-as-a-Refiner:** Advanced pattern detection accuracy using LLM refinement for enhanced analysis precision (optional toggle).
+* **Advanced DSPy Metrics:** Support for both exact match and LLM-as-a-Judge (qualitative) optimization metrics.
 * **Intelligent Template Suggestions:** Recommends relevant prompt templates from LangChain Hub based on the detected patterns in your prompt.
 * **Automated Prompt Optimization:** Uses **DSPy** to automatically optimize your prompts by generating few-shot examples from a small dataset you provide.
 * **Modern UI:** A clean, responsive, dark-themed interface built for an efficient and pleasant workflow.
@@ -118,6 +119,30 @@ The application now includes an advanced LLM-as-a-Refiner feature for enhanced p
 
 **Note:** This feature requires a running LLM service (Ollama) or valid API credentials for cloud providers.
 
+### Using Advanced DSPy Metrics
+
+The application now supports both quantitative and qualitative prompt optimization:
+
+1. **Select Optimization Metric:** In the "Optimize Prompt" panel, choose between:
+   - **"Exact Match (Default)"** - Traditional string matching against ground truth
+   - **"LLM-as-a-Judge (Quality Score)"** - AI-powered qualitative evaluation
+
+2. **Configure LLM Provider:** Set up your preferred provider for the LLM judge evaluation
+
+3. **Upload Dataset:** Provide a CSV/JSONL file with question-answer pairs for optimization
+
+4. **Run Optimization:** The system will use your selected metric to optimize the prompt
+
+**LLM-as-a-Judge Benefits:**
+- Evaluates style, engagement, and clarity
+- Provides human-like quality assessment
+- Better for creative or subjective tasks
+- More nuanced than exact string matching
+
+**Use Cases:**
+- **Exact Match**: Factual Q&A, technical content, precise instructions
+- **LLM-as-a-Judge**: Creative writing, marketing copy, conversational AI, subjective content
+
 ---
 
 ## 📊 Project Status
@@ -137,6 +162,7 @@ This is what has been successfully built and is currently working in the applica
 ### 🚀 Completed (v1.1 - Enhanced AI Features)
 
 * **LLM-as-a-Refiner:** Advanced pattern detection accuracy using LLM refinement for enhanced analysis precision with optional toggle in Pattern Analysis panel.
+* **Advanced DSPy Metrics:** Support for both exact match and LLM-as-a-Judge (qualitative) optimization metrics for comprehensive prompt evaluation.
 
 ---
 
@@ -150,7 +176,6 @@ This is the roadmap for what can be built on top of the current MVP foundation.
 * **Export Options:** Buttons to export the final, optimized prompt as a ready-to-use JSON object or Python script.
 
 ### Advanced AI & Optimization
-* **Advanced DSPy Metrics (LLM-as-a-Judge):** The ability to optimize prompts against qualitative metrics like "style," "engagement," or "safety," not just exact matches.
 * **Cost Estimation (Human in the Loop):** A feature that estimates the potential cost of a DSPy optimization job and asks the user for confirmation before running.
 * **Configurable Guardrails & Timeouts:** A UI to allow users to set their own limits on optimization time, LLM calls, or iterations to better manage resources.
 
