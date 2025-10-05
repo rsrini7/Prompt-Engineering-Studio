@@ -422,7 +422,7 @@ Ensure each component is addressed thoroughly."""
         try:
             # Configure LLM
             dspy_service = DspyService()
-            dspy_service.configure_llm(provider, model, api_key)
+            llm = dspy_service.configure_llm(provider, model, api_key)
 
             # Create DSPy signature for pattern refinement
             class PatternRefinementSignature(dspy.Signature):
@@ -430,9 +430,10 @@ Ensure each component is addressed thoroughly."""
                 meta_prompt = dspy.InputField()
                 refined_json = dspy.OutputField(desc="JSON object with refined pattern analysis")
 
-            # Get LLM response
-            refinement_program = dspy.Predict(PatternRefinementSignature)
-            response = refinement_program(meta_prompt=meta_prompt)
+            # Get LLM response using dspy.context
+            with dspy.context(lm=llm):
+                refinement_program = dspy.Predict(PatternRefinementSignature)
+                response = refinement_program(meta_prompt=meta_prompt)
 
             # Parse and return refined results
             return self._parse_llm_refinement_response(response.refined_json, detected_patterns)

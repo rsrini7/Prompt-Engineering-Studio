@@ -49,6 +49,11 @@ const PromptAnalyzer = () => {
     const [model, setModel] = useState<string>('gemma:2b');
     const [apiKey, setApiKey] = useState<string>('');
     const [metric, setMetric] = useState<string>('exact_match');
+    const [maxIterations, setMaxIterations] = useState<number>(4);
+
+    // --- State for cost estimation ---
+    const [costEstimation, setCostEstimation] = useState<any>(null);
+    const [showCostEstimation, setShowCostEstimation] = useState<boolean>(false);
 
     // Manual pattern analysis trigger
     const handleAnalyzeClick = async () => {
@@ -118,6 +123,34 @@ const PromptAnalyzer = () => {
             return;
         }
 
+        // Handle cost estimation first
+        if (showCostEstimation && selectedFile) {
+            try {
+                const estimationFormData = new FormData();
+                estimationFormData.append('dataset', selectedFile);
+                estimationFormData.append('provider', provider);
+                estimationFormData.append('model', model);
+                estimationFormData.append('max_iterations', maxIterations.toString());
+
+                const estimationResponse = await axios.post('http://127.0.0.1:8000/api/optimize/estimate', estimationFormData);
+                setCostEstimation(estimationResponse.data);
+
+                // Ask for confirmation if cost is significant
+                if (estimationResponse.data.total_cost_usd > 0.01) {
+                    const confirmed = window.confirm(
+                        `Estimated cost: $${estimationResponse.data.total_cost_usd.toFixed(4)}. Continue with optimization?`
+                    );
+                    if (!confirmed) {
+                        setOptimizationStatus('idle');
+                        return;
+                    }
+                }
+            } catch (err) {
+                console.error('Cost estimation failed:', err);
+                // Continue with optimization even if estimation fails
+            }
+        }
+
         setOptimizationStatus('optimizing');
         const formData = new FormData();
         formData.append('prompt', prompt);
@@ -126,6 +159,7 @@ const PromptAnalyzer = () => {
         formData.append('model', model);
         formData.append('api_key', apiKey);
         formData.append('metric', metric);
+        formData.append('max_iterations', maxIterations.toString());
 
 
         try {
@@ -331,6 +365,19 @@ const PromptAnalyzer = () => {
                     <div className="results-panel">
                         <h2 className="sub-header">Optimize Prompt</h2>
                         <div className="optimize-controls">
+                            {/* Cost Estimation Toggle */}
+                            <div style={{ marginBottom: '1rem' }}>
+                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={showCostEstimation}
+                                        onChange={(e) => setShowCostEstimation(e.target.checked)}
+                                        style={{ width: 'auto' }}
+                                    />
+                                    <span>💰 Show Cost Estimation</span>
+                                </label>
+                            </div>
+
                             <div style={{ marginBottom: '1rem' }}>
                                 <label className="input-label">Optimization Metric</label>
                                 <select className="select-input" value={metric} onChange={e => setMetric(e.target.value)}>
@@ -342,6 +389,23 @@ const PromptAnalyzer = () => {
                                         ? 'Optimizes for exact string matches with ground truth answers.'
                                         : 'Uses LLM evaluation for qualitative metrics like style, engagement, and clarity.'
                                     }
+                                </div>
+                            </div>
+
+                            {/* Guardrails Configuration */}
+                            <div style={{ marginBottom: '1rem' }}>
+                                <label className="input-label">Max Iterations</label>
+                                <input
+                                    type="number"
+                                    min="1"
+                                    max="10"
+                                    value={maxIterations}
+                                    onChange={(e) => setMaxIterations(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
+                                    className="text-input"
+                                    style={{ width: '100%' }}
+                                />
+                                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+                                    Controls optimization intensity (1-10 iterations). Higher values may improve results but increase cost and time.
                                 </div>
                             </div>
 
@@ -379,6 +443,58 @@ const PromptAnalyzer = () => {
                                 {optimizationStatus === 'optimizing' ? 'Optimizing...' : 'Start Optimization'}
                             </button>
                         </div>
+
+                        {/* Cost Estimation Display */}
+                        {showCostEstimation && costEstimation && !costEstimation.error && (
+                            <div className="cost-estimation" style={{
+                                marginTop: '1rem',
+                                padding: '1rem',
+                                backgroundColor: 'var(--background-card)',
+                                borderRadius: '8px',
+                                border: '1px solid var(--border-color)'
+                            }}>
+                                <h4 style={{ margin: '0 0 0.75rem 0', color: 'var(--primary-accent)' }}>💰 Cost Estimation</h4>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', fontSize: '0.9rem' }}>
+                                    <div><strong>Examples:</strong> {costEstimation.total_examples}</div>
+                                    <div><strong>Est. Input Tokens:</strong> {costEstimation.estimated_prompt_tokens?.toLocaleString()}</div>
+                                    <div><strong>Est. Output Tokens:</strong> {costEstimation.estimated_completion_tokens?.toLocaleString()}</div>
+                                    <div><strong>Iterations:</strong> {costEstimation.max_iterations}</div>
+                                    <div><strong>Input Cost:</strong> ${costEstimation.input_cost_usd?.toFixed(6)}</div>
+                                    <div><strong>Output Cost:</strong> ${costEstimation.output_cost_usd?.toFixed(6)}</div>
+                                </div>
+                                <div style={{
+                                    marginTop: '0.75rem',
+                                    padding: '0.5rem',
+                                    backgroundColor: 'var(--background-dark)',
+                                    borderRadius: '4px',
+                                    textAlign: 'center',
+                                    fontWeight: 'bold',
+                                    fontSize: '1.1rem'
+                                }}>
+                                    Total Estimated Cost: ${costEstimation.total_cost_usd?.toFixed(6)}
+                                </div>
+                                {costEstimation.note && (
+                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.5rem', fontStyle: 'italic' }}>
+                                        {costEstimation.note}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Cost Estimation Error */}
+                        {showCostEstimation && costEstimation && costEstimation.error && (
+                            <div style={{
+                                marginTop: '1rem',
+                                padding: '0.75rem',
+                                backgroundColor: 'var(--error-color)',
+                                color: 'white',
+                                borderRadius: '4px',
+                                fontSize: '0.9rem'
+                            }}>
+                                Cost estimation failed: {costEstimation.error}
+                            </div>
+                        )}
+
                         {optimizationStatus === 'error' && <p className="error-text">{optimizationError}</p>}
                     </div>
                 </div>

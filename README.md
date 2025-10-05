@@ -25,6 +25,7 @@ An open-source IDE for designing, analyzing, and optimizing LLM prompts. This to
 * **Real-time Pattern Analysis:** Instantly identifies common prompt engineering patterns (like Zero-Shot, Role Prompting, Chain-of-Thought) as you type.
 * **LLM-as-a-Refiner:** Advanced pattern detection accuracy using LLM refinement for enhanced analysis precision (optional toggle).
 * **Advanced DSPy Metrics:** Support for both exact match and LLM-as-a-Judge (qualitative) optimization metrics.
+* **Cost Estimation & Guardrails:** Real-time cost estimation with configurable iteration limits and cost control features.
 * **Intelligent Template Suggestions:** Recommends relevant prompt templates from LangChain Hub based on the detected patterns in your prompt.
 * **Automated Prompt Optimization:** Uses **DSPy** to automatically optimize your prompts by generating few-shot examples from a small dataset you provide.
 * **Modern UI:** A clean, responsive, dark-themed interface built for an efficient and pleasant workflow.
@@ -143,6 +144,34 @@ The application now supports both quantitative and qualitative prompt optimizati
 - **Exact Match**: Factual Q&A, technical content, precise instructions
 - **LLM-as-a-Judge**: Creative writing, marketing copy, conversational AI, subjective content
 
+### Using Cost Estimation & Guardrails
+
+The application now includes responsible AI features for cost management and optimization control:
+
+1. **Enable Cost Estimation:** Toggle "💰 Show Cost Estimation" in the Optimize Prompt panel
+
+2. **Configure Guardrails:** Set maximum iterations (1-10) to control optimization intensity
+
+3. **Review Cost Breakdown:** View detailed cost estimation including:
+   - Token counts (input/output)
+   - Provider-specific pricing
+   - Total estimated cost
+   - Example count and iteration details
+
+4. **Cost Confirmation:** For significant costs (>$0.01), users are prompted for confirmation before proceeding
+
+**Cost Management Benefits:**
+- **Transparent Pricing:** Clear cost breakdown before optimization
+- **Budget Control:** Set iteration limits to manage expenses
+- **Provider Flexibility:** Automatic pricing for different LLM providers
+- **Resource Awareness:** Make informed decisions about optimization intensity
+
+**Guardrails Features:**
+- **Iteration Control:** Limit optimization rounds (1-10 iterations)
+- **Cost Thresholds:** Automatic confirmation for expensive operations
+- **Provider Awareness:** Accurate pricing for Ollama, OpenRouter, and Groq
+- **Real-time Updates:** Cost estimation updates as settings change
+
 ---
 
 ## 📊 Project Status
@@ -163,6 +192,7 @@ This is what has been successfully built and is currently working in the applica
 
 * **LLM-as-a-Refiner:** Advanced pattern detection accuracy using LLM refinement for enhanced analysis precision with optional toggle in Pattern Analysis panel.
 * **Advanced DSPy Metrics:** Support for both exact match and LLM-as-a-Judge (qualitative) optimization metrics for comprehensive prompt evaluation.
+* **Cost Estimation & Guardrails:** Real-time cost estimation with configurable iteration limits and cost control features for responsible AI usage.
 
 ---
 
@@ -176,7 +206,6 @@ This is the roadmap for what can be built on top of the current MVP foundation.
 * **Export Options:** Buttons to export the final, optimized prompt as a ready-to-use JSON object or Python script.
 
 ### Advanced AI & Optimization
-* **Cost Estimation (Human in the Loop):** A feature that estimates the potential cost of a DSPy optimization job and asks the user for confirmation before running.
 * **Configurable Guardrails & Timeouts:** A UI to allow users to set their own limits on optimization time, LLM calls, or iterations to better manage resources.
 
 ### Platform & Workflow

@@ -2,6 +2,7 @@ import dspy
 import pandas as pd
 import io
 import json
+import tiktoken
 from typing import List, Dict, Any
 
 # 1. Define signatures for different tasks
@@ -17,6 +18,36 @@ class QualityJudgeSignature(dspy.Signature):
     ground_truth_answer = dspy.InputField()
     quality_score = dspy.OutputField(desc="Quality score from 1-5")
     feedback = dspy.OutputField(desc="Constructive feedback on the answer quality")
+
+# Model pricing information (per 1K tokens)
+MODEL_PRICING = {
+    # OpenRouter models
+    "openrouter": {
+        "meta-llama/llama-3-8b-instruct": {"input": 0.0001, "output": 0.0002},
+        "meta-llama/llama-3-70b-instruct": {"input": 0.00059, "output": 0.00079},
+        "anthropic/claude-3-haiku": {"input": 0.00025, "output": 0.00125},
+        "anthropic/claude-3-sonnet": {"input": 0.003, "output": 0.015},
+        "anthropic/claude-3-opus": {"input": 0.015, "output": 0.075},
+        "google/gemma-7b-it": {"input": 0.0001, "output": 0.0001},
+        "microsoft/wizardlm-2-8x22b": {"input": 0.0005, "output": 0.0005},
+    },
+    # Groq models
+    "groq": {
+        "llama3-8b-8192": {"input": 0.00005, "output": 0.00008},
+        "llama3-70b-8192": {"input": 0.00059, "output": 0.00079},
+        "mixtral-8x7b-32768": {"input": 0.00024, "output": 0.00024},
+    },
+    # Ollama models (free for local inference)
+    "ollama": {
+        "llama2": {"input": 0.0, "output": 0.0},
+        "llama2:7b": {"input": 0.0, "output": 0.0},
+        "llama2:13b": {"input": 0.0, "output": 0.0},
+        "codellama": {"input": 0.0, "output": 0.0},
+        "mistral": {"input": 0.0, "output": 0.0},
+        "gemma:2b": {"input": 0.0, "output": 0.0},
+        "gemma:7b": {"input": 0.0, "output": 0.0},
+    }
+}
 
 class DspyService:
     def configure_llm(self, provider: str, model: str, api_key: str):
@@ -47,7 +78,7 @@ class DspyService:
         else:
             raise ValueError(f"Unsupported provider: {provider}")
         
-        dspy.settings.configure(lm=llm)
+        return llm
 
     def llm_as_a_judge_metric(self, generated_answer: str, ground_truth_answer: str, question: str = "") -> float:
         """
@@ -62,35 +93,177 @@ class DspyService:
             Quality score between 0.0 and 1.0
         """
         try:
-            # Create the judge program
-            judge_program = dspy.Predict(QualityJudgeSignature)
+            # Configure LLM if not already configured
+            if not hasattr(self, '_current_llm') or self._current_llm is None:
+                # Use a default configuration for judge evaluation
+                self._current_llm = self.configure_llm("ollama", "gemma:2b", "")
 
-            # Get LLM evaluation
-            result = judge_program(
-                question=question,
-                generated_answer=generated_answer,
-                ground_truth_answer=ground_truth_answer
-            )
+            # Use dspy.context to ensure LLM is available
+            with dspy.context(lm=self._current_llm):
+                # Create the judge program
+                judge_program = dspy.Predict(QualityJudgeSignature)
 
-            # Parse quality score (expecting 1-5 range)
-            try:
-                raw_score = float(result.quality_score)
-                # Normalize to 0-1 range
-                normalized_score = max(0.0, min(1.0, raw_score / 5.0))
-                return normalized_score
-            except (ValueError, AttributeError):
-                # If parsing fails, return a neutral score
-                return 0.5
+                # Get LLM evaluation
+                result = judge_program(
+                    question=question,
+                    generated_answer=generated_answer,
+                    ground_truth_answer=ground_truth_answer
+                )
+
+                # Parse quality score (expecting 1-5 range)
+                try:
+                    raw_score = float(result.quality_score)
+                    # Normalize to 0-1 range
+                    normalized_score = max(0.0, min(1.0, raw_score / 5.0))
+                    return normalized_score
+                except (ValueError, AttributeError):
+                    # If parsing fails, return a neutral score
+                    return 0.5
 
         except Exception as e:
             print(f"LLM-as-a-Judge evaluation failed: {e}")
             # Return neutral score on failure
             return 0.5
 
+    def estimate_tokens(self, text: str, model_name: str = "gpt-3.5-turbo") -> int:
+        """
+        Estimate the number of tokens in a text using tiktoken.
+
+        Args:
+            text: The text to count tokens for
+            model_name: The model to use for tokenization (affects encoding)
+
+        Returns:
+            Estimated token count
+        """
+        try:
+            # Map model names to appropriate encodings
+            encoding_map = {
+                "gpt-3.5-turbo": "cl100k_base",
+                "gpt-4": "cl100k_base",
+                "text-davinci-003": "p50k_base",
+                "text-curie-001": "r50k_base",
+                "text-babbage-001": "r50k_base",
+                "text-ada-001": "r50k_base",
+                "davinci": "r50k_base",
+                "curie": "r50k_base",
+                "babbage": "r50k_base",
+                "ada": "r50k_base",
+            }
+
+            # Use cl100k_base as default (works for most modern models)
+            encoding_name = encoding_map.get(model_name, "cl100k_base")
+            encoding = tiktoken.get_encoding(encoding_name)
+
+            return len(encoding.encode(text))
+        except Exception as e:
+            print(f"Token estimation failed: {e}")
+            # Fallback: rough approximation (1 token ≈ 4 characters)
+            return len(text) // 4
+
+    def get_model_pricing(self, provider: str, model: str) -> Dict[str, float]:
+        """
+        Get pricing information for a specific model.
+
+        Args:
+            provider: The LLM provider ("ollama", "openrouter", "groq")
+            model: The model name
+
+        Returns:
+            Dictionary with input and output prices per 1K tokens
+        """
+        if provider in MODEL_PRICING and model in MODEL_PRICING[provider]:
+            return MODEL_PRICING[provider][model]
+        else:
+            # Return default pricing if model not found
+            return {"input": 0.002, "output": 0.002}
+
+    def estimate_optimization_cost(self, file_content: bytes, filename: str,
+                                 provider: str, model: str, max_iterations: int = 4) -> Dict[str, Any]:
+        """
+        Estimate the cost of running prompt optimization.
+
+        Args:
+            file_content: The dataset file content
+            filename: Name of the file (for format detection)
+            provider: LLM provider
+            model: Model name
+            max_iterations: Maximum number of optimization iterations
+
+        Returns:
+            Dictionary with cost estimation details
+        """
+        try:
+            # Load and parse dataset
+            if filename.endswith('.csv'):
+                df = pd.read_csv(io.BytesIO(file_content))
+            elif filename.endswith('.jsonl'):
+                df = pd.read_json(io.BytesIO(file_content), lines=True)
+            else:
+                raise ValueError("Unsupported file type. Please use .csv or .jsonl")
+
+            if df.empty:
+                return {"error": "Dataset is empty"}
+
+            # Calculate token counts
+            total_examples = len(df)
+            total_prompt_tokens = 0
+            total_example_tokens = 0
+
+            # Sample a few examples to estimate average token count
+            sample_size = min(10, total_examples)
+            sample_df = df.head(sample_size)
+
+            for _, row in sample_df.iterrows():
+                question = str(row.get('question', ''))
+                answer = str(row.get('answer', ''))
+
+                # Estimate tokens for examples
+                example_text = f"Question: {question}\nAnswer: {answer}"
+                example_tokens = self.estimate_tokens(example_text, model)
+                total_example_tokens += example_tokens
+
+            # Average tokens per example
+            avg_example_tokens = total_example_tokens // sample_size if sample_size > 0 else 100
+
+            # Estimate prompt tokens (rough approximation)
+            avg_prompt_tokens = 50  # Base prompt structure
+
+            # Get pricing information
+            pricing = self.get_model_pricing(provider, model)
+
+            # Calculate estimated costs
+            # Conservative estimate: each example processed multiple times during optimization
+            estimated_prompt_tokens = avg_prompt_tokens * total_examples * max_iterations
+            estimated_completion_tokens = avg_example_tokens * total_examples * max_iterations * 2  # Generation + evaluation
+
+            input_cost = (estimated_prompt_tokens / 1000) * pricing["input"]
+            output_cost = (estimated_completion_tokens / 1000) * pricing["output"]
+            total_cost = input_cost + output_cost
+
+            return {
+                "total_examples": total_examples,
+                "estimated_prompt_tokens": estimated_prompt_tokens,
+                "estimated_completion_tokens": estimated_completion_tokens,
+                "input_cost_usd": round(input_cost, 6),
+                "output_cost_usd": round(output_cost, 6),
+                "total_cost_usd": round(total_cost, 6),
+                "provider": provider,
+                "model": model,
+                "pricing_per_1k_input": pricing["input"],
+                "pricing_per_1k_output": pricing["output"],
+                "max_iterations": max_iterations,
+                "note": "This is a conservative estimate. Actual costs may vary based on prompt complexity and optimization behavior."
+            }
+
+        except Exception as e:
+            return {"error": f"Cost estimation failed: {str(e)}"}
+
     def optimize_prompt(self, original_prompt: str, file_content: bytes, filename: str,
-                       provider: str, model: str, api_key: str, metric: str = "exact_match") -> str:
-         # 1. Configure the LLM for this specific request
-        self.configure_llm(provider, model, api_key)
+                       provider: str, model: str, api_key: str, metric: str = "exact_match",
+                       max_iterations: int = 4) -> str:
+          # 1. Configure the LLM for this specific request
+        llm = self.configure_llm(provider, model, api_key)
 
         # 2. Load the dataset
         if filename.endswith('.csv'):
@@ -111,25 +284,26 @@ class DspyService:
             def forward(self, question):
                 return self.predictor(question=question)
 
-        # 3. Set up the optimizer with the selected metric
+        # 3. Set up the optimizer with the selected metric and guardrails using dspy.context
         from dspy.teleprompt import BootstrapFewShot
 
-        if metric == "llm_as_a_judge":
-            # Use LLM-as-a-Judge metric for qualitative evaluation
-            def llm_judge_metric(example, pred, trace=None):
-                question = example.question
-                ground_truth = example.answer
-                generated_answer = pred.answer
-                return self.llm_as_a_judge_metric(generated_answer, ground_truth, question)
+        with dspy.context(lm=llm):
+            if metric == "llm_as_a_judge":
+                # Use LLM-as-a-Judge metric for qualitative evaluation
+                def llm_judge_metric(example, pred, trace=None):
+                    question = example.question
+                    ground_truth = example.answer
+                    generated_answer = pred.answer
+                    return self.llm_as_a_judge_metric(generated_answer, ground_truth, question)
 
-            config = dict(max_bootstrapped_demos=4, max_labeled_demos=4)
-            teleprompter = BootstrapFewShot(metric=llm_judge_metric, **config)
-        else:
-            # Default to exact match metric
-            config = dict(max_bootstrapped_demos=4, max_labeled_demos=4)
-            teleprompter = BootstrapFewShot(metric=dspy.evaluate.answer_exact_match, **config)
+                config = dict(max_bootstrapped_demos=max_iterations, max_labeled_demos=max_iterations)
+                teleprompter = BootstrapFewShot(metric=llm_judge_metric, **config)
+            else:
+                # Default to exact match metric
+                config = dict(max_bootstrapped_demos=max_iterations, max_labeled_demos=max_iterations)
+                teleprompter = BootstrapFewShot(metric=dspy.evaluate.answer_exact_match, **config)
 
-        optimized_program = teleprompter.compile(BasicQAProgram(), trainset=train_set)
+            optimized_program = teleprompter.compile(BasicQAProgram(), trainset=train_set)
 
         # 4. Retrieve the learned demonstrations from the optimized predictor
         demos = optimized_program.predictor.demos
