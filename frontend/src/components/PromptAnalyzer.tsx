@@ -54,6 +54,10 @@ const PromptAnalyzer = () => {
     // --- State for cost estimation ---
     const [costEstimation, setCostEstimation] = useState<any>(null);
     const [showCostEstimation, setShowCostEstimation] = useState<boolean>(false);
+    const [isEstimatingCost, setIsEstimatingCost] = useState<boolean>(false);
+
+    // --- State for tabbed interface ---
+    const [activeTab, setActiveTab] = useState<'analyze' | 'optimize'>('analyze');
 
     // Manual pattern analysis trigger
     const handleAnalyzeClick = async () => {
@@ -99,6 +103,51 @@ const PromptAnalyzer = () => {
         }
     }, [useLlmRefiner, refinerProvider, refinerModel, refinerApiKey]);
 
+    // Auto-trigger cost estimation when file or model changes
+    useEffect(() => {
+        if (selectedFile && model && showCostEstimation && activeTab === 'optimize') {
+            const timeoutId = setTimeout(() => {
+                handleCostEstimation();
+            }, 1000); // 1 second delay to avoid excessive API calls
+
+            return () => clearTimeout(timeoutId);
+        }
+    }, [selectedFile, model, maxIterations, provider, showCostEstimation, activeTab]);
+
+    // Handle cost estimation
+    const handleCostEstimation = async () => {
+        if (!selectedFile || !model) {
+            setCostEstimation(null);
+            return;
+        }
+
+        setIsEstimatingCost(true);
+        try {
+            const estimationFormData = new FormData();
+            estimationFormData.append('dataset', selectedFile);
+            estimationFormData.append('provider', provider);
+            estimationFormData.append('model', model);
+            estimationFormData.append('max_iterations', maxIterations.toString());
+
+            console.log('Estimating cost for:', { provider, model, maxIterations, file: selectedFile.name });
+
+            const response = await axios.post('http://127.0.0.1:8000/api/optimize/estimate', estimationFormData);
+            console.log('Cost estimation response:', response.data);
+            setCostEstimation(response.data);
+        } catch (err) {
+            console.error('Cost estimation failed:', err);
+            setCostEstimation({
+                error: 'Failed to estimate cost',
+                total_cost_usd: 0,
+                total_examples: 0,
+                estimated_prompt_tokens: 0,
+                estimated_completion_tokens: 0
+            });
+        } finally {
+            setIsEstimatingCost(false);
+        }
+    };
+
     // Handler function for the optimize button
     const handleOptimizeClick = async () => {
         // Reset previous errors on each new attempt
@@ -123,31 +172,14 @@ const PromptAnalyzer = () => {
             return;
         }
 
-        // Handle cost estimation first
-        if (showCostEstimation && selectedFile) {
-            try {
-                const estimationFormData = new FormData();
-                estimationFormData.append('dataset', selectedFile);
-                estimationFormData.append('provider', provider);
-                estimationFormData.append('model', model);
-                estimationFormData.append('max_iterations', maxIterations.toString());
-
-                const estimationResponse = await axios.post('http://127.0.0.1:8000/api/optimize/estimate', estimationFormData);
-                setCostEstimation(estimationResponse.data);
-
-                // Ask for confirmation if cost is significant
-                if (estimationResponse.data.total_cost_usd > 0.01) {
-                    const confirmed = window.confirm(
-                        `Estimated cost: $${estimationResponse.data.total_cost_usd.toFixed(4)}. Continue with optimization?`
-                    );
-                    if (!confirmed) {
-                        setOptimizationStatus('idle');
-                        return;
-                    }
-                }
-            } catch (err) {
-                console.error('Cost estimation failed:', err);
-                // Continue with optimization even if estimation fails
+        // Check cost estimation and confirm if expensive (cloud providers)
+        if (costEstimation && !costEstimation.error && provider !== 'ollama' && costEstimation.total_cost_usd > 0.001) {
+            const confirmed = window.confirm(
+                `This optimization may cost approximately $${costEstimation.total_cost_usd.toFixed(6)}. Do you want to proceed?`
+            );
+            if (!confirmed) {
+                setOptimizationStatus('idle');
+                return;
             }
         }
 
@@ -213,289 +245,471 @@ const PromptAnalyzer = () => {
 
                 {/* Right column for analysis and optimization controls */}
                 <div className="analysis-column">
-                    <div className="results-panel">
-                        <h2 className="sub-header">Pattern Analysis</h2>
-
-                        {/* Pattern Analysis Controls */}
-                        <div className="analysis-controls" style={{ marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border-color)' }}>
-                            {/* LLM Refiner Toggle */}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                                    <input
-                                        type="checkbox"
-                                        checked={useLlmRefiner}
-                                        onChange={(e) => setUseLlmRefiner(e.target.checked)}
-                                        style={{ width: 'auto' }}
-                                    />
-                                    <span>🤖 Use LLM Refiner</span>
-                                </label>
-                                {useLlmRefiner && (
-                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                                        (Enhanced pattern detection accuracy)
-                                    </span>
-                                )}
-                            </div>
-
-                            {/* Analyze Button */}
+                    {/* Tabbed Interface for Better Organization */}
+                    <div className="tabbed-interface">
+                        {/* Tab Navigation */}
+                        <div className="tab-navigation" style={{
+                            display: 'flex',
+                            borderBottom: '2px solid var(--border-color)',
+                            marginBottom: '1rem'
+                        }}>
                             <button
-                                onClick={handleAnalyzeClick}
-                                disabled={isLoading || !prompt.trim()}
+                                className={`tab-button ${activeTab === 'analyze' ? 'active' : ''}`}
+                                onClick={() => setActiveTab('analyze')}
                                 style={{
-                                    backgroundColor: 'var(--primary-accent)',
-                                    color: 'white',
+                                    flex: 1,
+                                    padding: '0.75rem 1rem',
+                                    backgroundColor: activeTab === 'analyze' ? 'var(--primary-accent)' : 'var(--background-panel)',
+                                    color: activeTab === 'analyze' ? 'white' : 'var(--text-primary)',
                                     border: 'none',
-                                    padding: '0.75rem 1.5rem',
-                                    borderRadius: '8px',
-                                    cursor: isLoading || !prompt.trim() ? 'not-allowed' : 'pointer',
+                                    borderRadius: '8px 8px 0 0',
+                                    cursor: 'pointer',
                                     fontSize: '0.9rem',
                                     fontWeight: '500',
-                                    opacity: isLoading || !prompt.trim() ? 0.6 : 1,
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '0.5rem'
+                                    transition: 'all 0.2s ease'
                                 }}
                             >
-                                {isLoading ? '🔍 Analyzing...' : '🔍 Analyze Patterns'}
+                                🔍 Analyze
                             </button>
+                            <button
+                                className={`tab-button ${activeTab === 'optimize' ? 'active' : ''}`}
+                                onClick={() => setActiveTab('optimize')}
+                                style={{
+                                    flex: 1,
+                                    padding: '0.75rem 1rem',
+                                    backgroundColor: activeTab === 'optimize' ? 'var(--primary-accent)' : 'var(--background-panel)',
+                                    color: activeTab === 'optimize' ? 'white' : 'var(--text-primary)',
+                                    border: 'none',
+                                    borderRadius: '8px 8px 0 0',
+                                    cursor: 'pointer',
+                                    fontSize: '0.9rem',
+                                    fontWeight: '500',
+                                    transition: 'all 0.2s ease'
+                                }}
+                            >
+                                ⚡ Optimize
+                            </button>
+                        </div>
 
-                            {!prompt.trim() && (
-                                <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginLeft: '0.5rem' }}>
-                                    Enter a prompt to analyze
-                                </span>
-                            )}
+                        {/* Tab Content */}
+                        <div className="tab-content">
+                            {/* Analysis Tab */}
+                            {activeTab === 'analyze' && (
+                                <div className="analysis-tab">
+                                    <div className="results-panel">
+                                        <h2 className="sub-header">Pattern Analysis</h2>
 
-                            {/* LLM Refiner Configuration */}
-                            {useLlmRefiner && (
-                                <div className="llm-refiner-config" style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                    <div>
-                                        <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                                            Provider
-                                        </label>
-                                        <select
-                                            value={refinerProvider}
-                                            onChange={(e) => setRefinerProvider(e.target.value)}
-                                            style={{
-                                                width: '100%',
-                                                padding: '0.5rem',
-                                                backgroundColor: 'var(--background-card)',
-                                                color: 'var(--text-primary)',
-                                                border: '1px solid var(--border-color)',
-                                                borderRadius: '4px'
-                                            }}
-                                        >
-                                            <option value="ollama">Ollama (Local)</option>
-                                            <option value="openrouter">OpenRouter</option>
-                                            <option value="groq">Groq</option>
-                                        </select>
-                                    </div>
-
-                                    <div>
-                                        <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                                            Model
-                                        </label>
-                                        <input
-                                            type="text"
-                                            value={refinerModel}
-                                            onChange={(e) => setRefinerModel(e.target.value)}
-                                            placeholder={refinerProvider === 'ollama' ? 'e.g., gemma:2b' : 'e.g., meta-llama/llama-3-8b-instruct'}
-                                            style={{
-                                                width: '100%',
-                                                padding: '0.5rem',
-                                                backgroundColor: 'var(--background-card)',
-                                                color: 'var(--text-primary)',
-                                                border: '1px solid var(--border-color)',
-                                                borderRadius: '4px'
-                                            }}
-                                        />
-                                    </div>
-
-                                    {(refinerProvider === 'openrouter' || refinerProvider === 'groq') && (
-                                        <div>
-                                            <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                                                API Key
+                                        {/* Quick Action Bar */}
+                                        <div className="quick-actions" style={{
+                                            display: 'flex',
+                                            gap: '1rem',
+                                            marginBottom: '1rem',
+                                            alignItems: 'center',
+                                            flexWrap: 'wrap'
+                                        }}>
+                                            {/* LLM Refiner Toggle */}
+                                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={useLlmRefiner}
+                                                    onChange={(e) => setUseLlmRefiner(e.target.checked)}
+                                                    style={{ width: 'auto' }}
+                                                />
+                                                <span>🤖 LLM Refiner</span>
                                             </label>
-                                            <input
-                                                type="password"
-                                                value={refinerApiKey}
-                                                onChange={(e) => setRefinerApiKey(e.target.value)}
-                                                placeholder={`Your ${refinerProvider} API Key`}
+
+                                            {/* Analyze Button */}
+                                            <button
+                                                onClick={handleAnalyzeClick}
+                                                disabled={isLoading || !prompt.trim()}
                                                 style={{
-                                                    width: '100%',
-                                                    padding: '0.5rem',
-                                                    backgroundColor: 'var(--background-card)',
-                                                    color: 'var(--text-primary)',
-                                                    border: '1px solid var(--border-color)',
-                                                    borderRadius: '4px'
+                                                    backgroundColor: 'var(--primary-accent)',
+                                                    color: 'white',
+                                                    border: 'none',
+                                                    padding: '0.5rem 1rem',
+                                                    borderRadius: '6px',
+                                                    cursor: isLoading || !prompt.trim() ? 'not-allowed' : 'pointer',
+                                                    fontSize: '0.9rem',
+                                                    fontWeight: '500',
+                                                    opacity: isLoading || !prompt.trim() ? 0.6 : 1
                                                 }}
-                                            />
+                                            >
+                                                {isLoading ? '🔍 Analyzing...' : '🔍 Analyze'}
+                                            </button>
                                         </div>
-                                    )}
+
+                                        {/* LLM Refiner Configuration (Collapsible) */}
+                                        {useLlmRefiner && (
+                                            <div className="llm-config-panel" style={{
+                                                backgroundColor: 'var(--background-dark)',
+                                                padding: '1rem',
+                                                borderRadius: '8px',
+                                                marginBottom: '1rem',
+                                                animation: 'fadeIn 0.3s ease-in-out'
+                                            }}>
+                                                <h4 style={{ margin: '0 0 0.75rem 0', color: 'var(--primary-accent)' }}>🤖 LLM Configuration</h4>
+                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                                                    <div>
+                                                        <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                                            Provider
+                                                        </label>
+                                                        <select
+                                                            value={refinerProvider}
+                                                            onChange={(e) => setRefinerProvider(e.target.value)}
+                                                            style={{
+                                                                width: '100%',
+                                                                padding: '0.5rem',
+                                                                backgroundColor: 'var(--background-card)',
+                                                                color: 'var(--text-primary)',
+                                                                border: '1px solid var(--border-color)',
+                                                                borderRadius: '4px'
+                                                            }}
+                                                        >
+                                                            <option value="ollama">Ollama</option>
+                                                            <option value="openrouter">OpenRouter</option>
+                                                            <option value="groq">Groq</option>
+                                                        </select>
+                                                    </div>
+
+                                                    <div>
+                                                        <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                                            Model
+                                                        </label>
+                                                        <input
+                                                            type="text"
+                                                            value={refinerModel}
+                                                            onChange={(e) => setRefinerModel(e.target.value)}
+                                                            placeholder={refinerProvider === 'ollama' ? 'gemma:2b' : 'meta-llama/llama-3-8b-instruct'}
+                                                            style={{
+                                                                width: '100%',
+                                                                padding: '0.5rem',
+                                                                backgroundColor: 'var(--background-card)',
+                                                                color: 'var(--text-primary)',
+                                                                border: '1px solid var(--border-color)',
+                                                                borderRadius: '4px'
+                                                            }}
+                                                        />
+                                                    </div>
+                                                </div>
+
+                                                {(refinerProvider === 'openrouter' || refinerProvider === 'groq') && (
+                                                    <div style={{ marginTop: '0.75rem' }}>
+                                                        <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                                            API Key
+                                                        </label>
+                                                        <input
+                                                            type="password"
+                                                            value={refinerApiKey}
+                                                            onChange={(e) => setRefinerApiKey(e.target.value)}
+                                                            placeholder={`${refinerProvider} API Key`}
+                                                            style={{
+                                                                width: '100%',
+                                                                padding: '0.5rem',
+                                                                backgroundColor: 'var(--background-card)',
+                                                                color: 'var(--text-primary)',
+                                                                border: '1px solid var(--border-color)',
+                                                                borderRadius: '4px'
+                                                            }}
+                                                        />
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        {/* Pattern Results */}
+                                        {isLoading && <p>Analyzing...</p>}
+                                        {error && <p className="error-text">{error}</p>}
+                                        {results && !isLoading && Object.keys(results.patterns).length > 0 && (
+                                            <div className="patterns-grid">
+                                                {Object.values(results.patterns).map((p) => (
+                                                    <div key={p.pattern} className="pattern-card">
+                                                        <h3 className="pattern-title">{p.pattern.replace(/_/g, ' ')}</h3>
+                                                        <p className="pattern-category">{p.category}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* Template Suggestions - Compact View */}
+                                    <div className="results-panel" style={{ marginTop: '1rem' }}>
+                                        <h2 className="sub-header">💡 Templates</h2>
+                                        {isLoading && <p>Loading suggestions...</p>}
+                                        {suggestions.length > 0 && !isLoading && (
+                                            <div className="suggestions-list">
+                                                {suggestions.slice(0, 3).map((s) => (
+                                                    <div key={s.name} className="suggestion-card">
+                                                        <span className="suggestion-name">{s.name}</span>
+                                                        <span className="suggestion-score">Match: {s.score}%</span>
+                                                    </div>
+                                                ))}
+                                                {suggestions.length > 3 && (
+                                                    <div style={{ textAlign: 'center', marginTop: '0.5rem' }}>
+                                                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                                                            +{suggestions.length - 3} more suggestions
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                        {!isLoading && !error && results && suggestions.length === 0 && <p>No template suggestions for this prompt.</p>}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Optimization Tab */}
+                            {activeTab === 'optimize' && (
+                                <div className="optimization-tab">
+                                    <div className="results-panel">
+                                        <h2 className="sub-header">⚡ Prompt Optimization</h2>
+
+                                        {/* Quick Configuration Bar */}
+                                        <div className="config-bar" style={{
+                                            display: 'grid',
+                                            gridTemplateColumns: '1fr 1fr',
+                                            gap: '1rem',
+                                            marginBottom: '1rem'
+                                        }}>
+                                            <div>
+                                                <label className="input-label">Metric</label>
+                                                <select className="select-input" value={metric} onChange={e => setMetric(e.target.value)}>
+                                                    <option value="exact_match">Exact Match</option>
+                                                    <option value="llm_as_a_judge">LLM Judge</option>
+                                                </select>
+                                            </div>
+
+                                            <div>
+                                                <label className="input-label">Max Iterations</label>
+                                                <input
+                                                    type="number"
+                                                    min="1"
+                                                    max="10"
+                                                    value={maxIterations}
+                                                    onChange={(e) => setMaxIterations(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
+                                                    className="text-input"
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* Provider Configuration */}
+                                        <div className="provider-config" style={{
+                                            display: 'grid',
+                                            gridTemplateColumns: '1fr 1fr',
+                                            gap: '1rem',
+                                            marginBottom: '1rem'
+                                        }}>
+                                            <div>
+                                                <label className="input-label">Provider</label>
+                                                <select className="select-input" value={provider} onChange={e => setProvider(e.target.value)}>
+                                                    <option value="ollama">Ollama</option>
+                                                    <option value="openrouter">OpenRouter</option>
+                                                    <option value="groq">Groq</option>
+                                                </select>
+                                            </div>
+
+                                            <div>
+                                                <label className="input-label">Model</label>
+                                                <input
+                                                    type="text"
+                                                    className="text-input"
+                                                    value={model}
+                                                    onChange={e => setModel(e.target.value)}
+                                                    placeholder={provider === 'ollama' ? 'gemma:2b' : 'meta-llama/llama-3-8b-instruct'}
+                                                />
+                                            </div>
+                                        </div>
+
+                                        {/* API Key (conditional) */}
+                                        {(provider === 'openrouter' || provider === 'groq') && (
+                                            <div style={{ marginBottom: '1rem' }}>
+                                                <label className="input-label">API Key</label>
+                                                <input
+                                                    type="password"
+                                                    className="text-input"
+                                                    value={apiKey}
+                                                    onChange={e => setApiKey(e.target.value)}
+                                                    placeholder={`${provider} API Key`}
+                                                />
+                                            </div>
+                                        )}
+
+                                        {/* File Upload & Action */}
+                                        <div className="file-upload-section" style={{
+                                            display: 'flex',
+                                            gap: '1rem',
+                                            alignItems: 'center',
+                                            marginBottom: '1rem',
+                                            flexWrap: 'wrap'
+                                        }}>
+                                            <label className="file-input-label" style={{ flex: 1, minWidth: '200px' }}>
+                                                {selectedFile ? `✅ ${selectedFile.name}` : '📁 Choose Dataset File'}
+                                                <input type="file" onChange={(e) => setSelectedFile(e.target.files ? e.target.files[0] : null)} accept=".csv,.jsonl"/>
+                                            </label>
+
+                                            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                                                <button
+                                                    onClick={handleOptimizeClick}
+                                                    disabled={optimizationStatus === 'optimizing' || !selectedFile}
+                                                    style={{
+                                                        backgroundColor: 'var(--primary-accent)',
+                                                        color: 'white',
+                                                        border: 'none',
+                                                        padding: '0.75rem 1.5rem',
+                                                        borderRadius: '8px',
+                                                        cursor: optimizationStatus === 'optimizing' || !selectedFile ? 'not-allowed' : 'pointer',
+                                                        fontSize: '0.9rem',
+                                                        fontWeight: '500',
+                                                        opacity: optimizationStatus === 'optimizing' || !selectedFile ? 0.6 : 1
+                                                    }}
+                                                >
+                                                    {optimizationStatus === 'optimizing' ? '⚡ Optimizing...' : '⚡ Start Optimization'}
+                                                </button>
+
+                                                {/* Manual cost estimation trigger */}
+                                                <button
+                                                    onClick={handleCostEstimation}
+                                                    disabled={!selectedFile || !model}
+                                                    style={{
+                                                        backgroundColor: 'var(--background-card)',
+                                                        color: 'var(--text-primary)',
+                                                        border: '1px solid var(--border-color)',
+                                                        padding: '0.5rem 1rem',
+                                                        borderRadius: '6px',
+                                                        cursor: !selectedFile || !model ? 'not-allowed' : 'pointer',
+                                                        fontSize: '0.8rem',
+                                                        opacity: !selectedFile || !model ? 0.6 : 1
+                                                    }}
+                                                    title="Refresh cost estimation"
+                                                >
+                                                    🔄
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {/* Cost Estimation Toggle */}
+                                        <div style={{ marginBottom: '1rem' }}>
+                                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={showCostEstimation}
+                                                    onChange={(e) => {
+                                                        setShowCostEstimation(e.target.checked);
+                                                        // Trigger cost estimation when toggled on
+                                                        if (e.target.checked && selectedFile && model) {
+                                                            setTimeout(() => handleCostEstimation(), 100);
+                                                        }
+                                                    }}
+                                                    style={{ width: 'auto' }}
+                                                />
+                                                <span>💰 Show Cost Estimation</span>
+                                            </label>
+                                        </div>
+
+                                        {/* Cost Estimation Display */}
+                                        {showCostEstimation && (
+                                            <>
+                                                {/* Loading State */}
+                                                {isEstimatingCost && (
+                                                    <div className="cost-display" style={{
+                                                        backgroundColor: 'var(--background-dark)',
+                                                        padding: '0.75rem',
+                                                        borderRadius: '8px',
+                                                        marginTop: '1rem',
+                                                        border: '1px solid var(--border-color)',
+                                                        textAlign: 'center'
+                                                    }}>
+                                                        <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                                                            🔄 Calculating cost estimation...
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Cost Results */}
+                                                {costEstimation && costEstimation.total_cost_usd !== undefined && !isEstimatingCost && (
+                                                    <div className="cost-display" style={{
+                                                        backgroundColor: 'var(--background-dark)',
+                                                        padding: '0.75rem',
+                                                        borderRadius: '8px',
+                                                        marginTop: '1rem',
+                                                        border: '1px solid var(--border-color)',
+                                                        animation: 'fadeIn 0.3s ease-in-out'
+                                                    }}>
+                                                        <div style={{
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'space-between',
+                                                            marginBottom: '0.5rem'
+                                                        }}>
+                                                            <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                                                                Estimated Cost:
+                                                            </span>
+                                                            <span style={{
+                                                                fontSize: '1.1rem',
+                                                                fontWeight: 'bold',
+                                                                color: provider !== 'ollama' && costEstimation.total_cost_usd > 0.01 ? 'var(--error-color)' : 'var(--primary-accent)'
+                                                            }}>
+                                                                ${costEstimation.total_cost_usd?.toFixed(6)}
+                                                            </span>
+                                                        </div>
+
+                                                        {provider !== 'ollama' && costEstimation.total_cost_usd > 0.01 && (
+                                                            <div style={{
+                                                                fontSize: '0.8rem',
+                                                                color: 'var(--error-color)',
+                                                                backgroundColor: 'rgba(255, 85, 85, 0.1)',
+                                                                padding: '0.25rem 0.5rem',
+                                                                borderRadius: '4px',
+                                                                marginBottom: '0.5rem'
+                                                            }}>
+                                                                ⚠️ Higher cost detected - confirm before proceeding
+                                                            </div>
+                                                        )}
+
+                                                        {provider === 'ollama' && (
+                                                            <div style={{
+                                                                fontSize: '0.8rem',
+                                                                color: 'var(--primary-accent)',
+                                                                backgroundColor: 'rgba(13, 142, 255, 0.1)',
+                                                                padding: '0.25rem 0.5rem',
+                                                                borderRadius: '4px',
+                                                                marginBottom: '0.5rem',
+                                                                textAlign: 'center'
+                                                            }}>
+                                                                ✅ Free local inference
+                                                            </div>
+                                                        )}
+
+                                                        <div style={{
+                                                            fontSize: '0.8rem',
+                                                            color: 'var(--text-secondary)',
+                                                            textAlign: 'center'
+                                                        }}>
+                                                            {costEstimation.total_examples || 0} examples × {costEstimation.max_iterations || maxIterations} iterations
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </>
+                                        )}
+
+                                        {/* Cost Estimation Error */}
+                                        {costEstimation && costEstimation.error && (
+                                            <div style={{
+                                                backgroundColor: 'var(--error-color)',
+                                                color: 'white',
+                                                padding: '0.5rem',
+                                                borderRadius: '4px',
+                                                marginTop: '1rem',
+                                                fontSize: '0.8rem'
+                                            }}>
+                                                Cost estimation failed: {costEstimation.error}
+                                            </div>
+                                        )}
+
+                                        {optimizationStatus === 'error' && <p className="error-text">{optimizationError}</p>}
+                                    </div>
                                 </div>
                             )}
                         </div>
-
-                        {isLoading && <p>Analyzing...</p>}
-                        {error && <p className="error-text">{error}</p>}
-                        {results && !isLoading && Object.keys(results.patterns).length > 0 && (
-                            <div className="patterns-grid">
-                                {Object.values(results.patterns).map((p) => (
-                                    <div key={p.pattern} className="pattern-card">
-                                        <h3 className="pattern-title">{p.pattern.replace(/_/g, ' ')}</h3>
-                                        <p className="pattern-category">{p.category}</p>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                    <div className="results-panel">
-                        <h2 className="sub-header">💡 Template Suggestions</h2>
-                        {isLoading && <p>Loading suggestions...</p>}
-                        {suggestions.length > 0 && !isLoading && (
-                            <div className="suggestions-list">
-                                {suggestions.map((s) => (
-                                    <div key={s.name} className="suggestion-card">
-                                        <span className="suggestion-name">{s.name}</span>
-                                        <span className="suggestion-score">Match: {s.score}%</span>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                        {!isLoading && !error && results && suggestions.length === 0 && <p>No template suggestions for this prompt.</p>}
-                    </div>
-                    <div className="results-panel">
-                        <h2 className="sub-header">Optimize Prompt</h2>
-                        <div className="optimize-controls">
-                            {/* Cost Estimation Toggle */}
-                            <div style={{ marginBottom: '1rem' }}>
-                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                                    <input
-                                        type="checkbox"
-                                        checked={showCostEstimation}
-                                        onChange={(e) => setShowCostEstimation(e.target.checked)}
-                                        style={{ width: 'auto' }}
-                                    />
-                                    <span>💰 Show Cost Estimation</span>
-                                </label>
-                            </div>
-
-                            <div style={{ marginBottom: '1rem' }}>
-                                <label className="input-label">Optimization Metric</label>
-                                <select className="select-input" value={metric} onChange={e => setMetric(e.target.value)}>
-                                    <option value="exact_match">Exact Match (Default)</option>
-                                    <option value="llm_as_a_judge">LLM-as-a-Judge (Quality Score)</option>
-                                </select>
-                                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-                                    {metric === 'exact_match'
-                                        ? 'Optimizes for exact string matches with ground truth answers.'
-                                        : 'Uses LLM evaluation for qualitative metrics like style, engagement, and clarity.'
-                                    }
-                                </div>
-                            </div>
-
-                            {/* Guardrails Configuration */}
-                            <div style={{ marginBottom: '1rem' }}>
-                                <label className="input-label">Max Iterations</label>
-                                <input
-                                    type="number"
-                                    min="1"
-                                    max="10"
-                                    value={maxIterations}
-                                    onChange={(e) => setMaxIterations(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
-                                    className="text-input"
-                                    style={{ width: '100%' }}
-                                />
-                                <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-                                    Controls optimization intensity (1-10 iterations). Higher values may improve results but increase cost and time.
-                                </div>
-                            </div>
-
-                            <label className="input-label">Provider</label>
-                            <select className="select-input" value={provider} onChange={e => setProvider(e.target.value)}>
-                                <option value="ollama">Ollama (Local)</option>
-                                <option value="openrouter">OpenRouter</option>
-                                <option value="groq">Groq</option>
-                            </select>
-                            <label className="input-label">Model Name</label>
-                            <input 
-                                type="text" 
-                                className="text-input" 
-                                value={model} 
-                                onChange={e => setModel(e.target.value)}
-                                placeholder={provider === 'ollama' ? 'e.g., gemma:2b' : 'e.g., meta-llama/llama-3-8b-instruct'}
-                            />
-                            {(provider === 'openrouter' || provider === 'groq') && (
-                                <>
-                                    <label className="input-label">API Key</label>
-                                    <input 
-                                        type="password"
-                                        className="text-input"
-                                        value={apiKey}
-                                        onChange={e => setApiKey(e.target.value)}
-                                        placeholder={`Your ${provider} API Key`}
-                                    />
-                                </>
-                            )}
-                            <label className="file-input-label">
-                                {selectedFile ? `Selected: ${selectedFile.name}` : 'Choose Dataset File'}
-                                <input type="file" onChange={(e) => setSelectedFile(e.target.files ? e.target.files[0] : null)} accept=".csv,.jsonl"/>
-                            </label>
-                            <button onClick={handleOptimizeClick} disabled={optimizationStatus === 'optimizing'}>
-                                {optimizationStatus === 'optimizing' ? 'Optimizing...' : 'Start Optimization'}
-                            </button>
-                        </div>
-
-                        {/* Cost Estimation Display */}
-                        {showCostEstimation && costEstimation && !costEstimation.error && (
-                            <div className="cost-estimation" style={{
-                                marginTop: '1rem',
-                                padding: '1rem',
-                                backgroundColor: 'var(--background-card)',
-                                borderRadius: '8px',
-                                border: '1px solid var(--border-color)'
-                            }}>
-                                <h4 style={{ margin: '0 0 0.75rem 0', color: 'var(--primary-accent)' }}>💰 Cost Estimation</h4>
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', fontSize: '0.9rem' }}>
-                                    <div><strong>Examples:</strong> {costEstimation.total_examples}</div>
-                                    <div><strong>Est. Input Tokens:</strong> {costEstimation.estimated_prompt_tokens?.toLocaleString()}</div>
-                                    <div><strong>Est. Output Tokens:</strong> {costEstimation.estimated_completion_tokens?.toLocaleString()}</div>
-                                    <div><strong>Iterations:</strong> {costEstimation.max_iterations}</div>
-                                    <div><strong>Input Cost:</strong> ${costEstimation.input_cost_usd?.toFixed(6)}</div>
-                                    <div><strong>Output Cost:</strong> ${costEstimation.output_cost_usd?.toFixed(6)}</div>
-                                </div>
-                                <div style={{
-                                    marginTop: '0.75rem',
-                                    padding: '0.5rem',
-                                    backgroundColor: 'var(--background-dark)',
-                                    borderRadius: '4px',
-                                    textAlign: 'center',
-                                    fontWeight: 'bold',
-                                    fontSize: '1.1rem'
-                                }}>
-                                    Total Estimated Cost: ${costEstimation.total_cost_usd?.toFixed(6)}
-                                </div>
-                                {costEstimation.note && (
-                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.5rem', fontStyle: 'italic' }}>
-                                        {costEstimation.note}
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {/* Cost Estimation Error */}
-                        {showCostEstimation && costEstimation && costEstimation.error && (
-                            <div style={{
-                                marginTop: '1rem',
-                                padding: '0.75rem',
-                                backgroundColor: 'var(--error-color)',
-                                color: 'white',
-                                borderRadius: '4px',
-                                fontSize: '0.9rem'
-                            }}>
-                                Cost estimation failed: {costEstimation.error}
-                            </div>
-                        )}
-
-                        {optimizationStatus === 'error' && <p className="error-text">{optimizationError}</p>}
                     </div>
                 </div>
             </div>

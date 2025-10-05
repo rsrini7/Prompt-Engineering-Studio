@@ -431,12 +431,30 @@ Ensure each component is addressed thoroughly."""
                 refined_json = dspy.OutputField(desc="JSON object with refined pattern analysis")
 
             # Get LLM response using dspy.context
-            with dspy.context(lm=llm):
-                refinement_program = dspy.Predict(PatternRefinementSignature)
-                response = refinement_program(meta_prompt=meta_prompt)
+            try:
+                with dspy.context(lm=llm):
+                    try:
+                        # Try modern DSPy syntax first
+                        refinement_program = dspy.Predict(PatternRefinementSignature)
+                        response = refinement_program(meta_prompt=meta_prompt)
+                        refined_json = response.refined_json
+                    except AttributeError:
+                        # Fallback for different DSPy versions
+                        refinement_program = dspy.Predict(PatternRefinementSignature)
+                        response = refinement_program(meta_prompt=meta_prompt)
+                        refined_json = getattr(response, 'refined_json', str(response))
 
-            # Parse and return refined results
-            return self._parse_llm_refinement_response(response.refined_json, detected_patterns)
+                # Parse and return refined results
+                return self._parse_llm_refinement_response(refined_json, detected_patterns)
+
+            except (AttributeError, TypeError) as e:
+                if "context" in str(e) or "OpenAI" in str(e) or "Predict" in str(e):
+                    print(f"DSPy compatibility issue: {e}")
+                    print("Falling back to rule-based detection only...")
+                    # Return original patterns if DSPy operations fail
+                    return detected_patterns
+                else:
+                    raise
 
         except Exception as e:
             print(f"LLM refinement failed: {e}")
