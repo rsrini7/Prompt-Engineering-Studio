@@ -108,11 +108,11 @@ Please provide your response:"""
 # This maps our internal pattern names to popular LangSmith prompts.
 # Updated to use LangSmith format: "owner/repo-name"
 PATTERN_TO_HUB_MAP = {
-    "rag": ["rlm/rag-prompt", "langchain-ai/retrieval-qa-chat"],
-    "react": ["hwchase17/react-chat", "hwchase17/react-json"],
-    "chain_of_thought": ["rlm/rag-prompt-cot"],
-    "role_prompting": ["hwchase17/react-chat", "rlm/rag-prompt"],
-}
+     "rag": ["rlm/rag-prompt", "langchain-ai/retrieval-qa-chat"],
+     "react": ["hwchase17/react-chat", "hwchase17/react-json"],
+     "chain_of_thought": ["rlm/rag-prompt-cot", "chain_of_thought"],
+     "role_prompting": ["hwchase17/react-chat", "rlm/rag-prompt"],
+ }
 
 # Template content cache for better performance
 TEMPLATE_CACHE = {}
@@ -168,7 +168,11 @@ class HubService:
         Returns:
             The template content as a string
         """
+        print(f"🔍 Looking for template: {template_slug}")
+        print(f"📋 Available templates: {list(LOCAL_TEMPLATES.keys())}")
+
         if template_slug in TEMPLATE_CACHE:
+            print(f"✅ Found {template_slug} in cache")
             return TEMPLATE_CACHE[template_slug]
 
         # Try to fetch from LangSmith if available
@@ -194,19 +198,33 @@ class HubService:
                 print("Using local templates as fallback")
 
         # Use local template repository as fallback
+        print(f"🔍 Checking LOCAL_TEMPLATES for: {template_slug}")
         if template_slug in LOCAL_TEMPLATES:
             content = LOCAL_TEMPLATES[template_slug]
             TEMPLATE_CACHE[template_slug] = content
+            print(f"✅ Found template {template_slug} in LOCAL_TEMPLATES")
             return content
+        else:
+            print(f"❌ Template {template_slug} NOT found in LOCAL_TEMPLATES")
 
         # Fallback for pattern-based template names
         if template_slug == "chain_of_thought":
             content = LOCAL_TEMPLATES["chain_of_thought"]
             TEMPLATE_CACHE[template_slug] = content
+            print(f"Using chain_of_thought template")
             return content
 
+        # Try to find similar templates
+        print(f"🔍 Looking for similar templates to: {template_slug}")
+        for existing_slug in LOCAL_TEMPLATES.keys():
+            if template_slug in existing_slug or existing_slug in template_slug:
+                content = LOCAL_TEMPLATES[existing_slug]
+                TEMPLATE_CACHE[template_slug] = content
+                print(f"✅ Using similar template {existing_slug} for {template_slug}")
+                return content
+
         # Generic fallback for unknown templates
-        print(f"Template {template_slug} not found, using generic template")
+        print(f"❌ Template {template_slug} not found, using generic template")
         generic_content = f"""Template: {template_slug}
 
 {{input}}
@@ -248,9 +266,10 @@ class HubService:
         }
 
     def merge_template_with_prompt(self, user_prompt: str, template_slug: str,
-                                  provider: str = "ollama", model: str = "gemma:2b", api_key: str = "") -> str:
+                                   provider: str = "ollama", model: str = "gemma:2b", api_key: str = "") -> str:
         """
         Intelligently merge user prompt content into a template using LLM.
+        Falls back to simple string replacement if LLM fails.
 
         Args:
             user_prompt: The user's original prompt
@@ -271,14 +290,17 @@ class HubService:
             if not template_content or not variables:
                 return user_prompt  # Return original if template not available
 
-            # Configure LLM for merging
-            dspy_service = DspyService()
-            llm = dspy_service.configure_llm(provider, model, api_key)
+            # Try LLM-based merging first
+            if provider != "ollama" or api_key:  # Only try LLM if not using default ollama
+                try:
+                    # Configure LLM for merging
+                    dspy_service = DspyService()
+                    llm = dspy_service.configure_llm(provider, model, api_key)
 
-            # Create merging prompt
-            variables_str = ", ".join(f'"{var}"' for var in variables)
+                    # Create merging prompt
+                    variables_str = ", ".join(f'"{var}"' for var in variables)
 
-            merge_prompt = f"""
+                    merge_prompt = f"""
 You are an expert prompt engineer. Given the user's prompt and a template with variables, intelligently extract information from the user's prompt and fill in the template variables.
 
 **User's Prompt:**
@@ -300,37 +322,59 @@ You are an expert prompt engineer. Given the user's prompt and a template with v
 Return only the filled-in template text, no explanations or additional content.
 """
 
-            # Use DSPy to get LLM response
-            with dspy.context(lm=llm):
-                try:
-                    # Create a simple signature for template merging
-                    class TemplateMergeSignature(dspy.Signature):
-                        """Merge user prompt into template."""
-                        merge_prompt = dspy.InputField()
-                        merged_template = dspy.OutputField(desc="The template with variables filled in")
+                    # Use DSPy to get LLM response
+                    with dspy.context(lm=llm):
+                        # Create a simple signature for template merging
+                        class TemplateMergeSignature(dspy.Signature):
+                            """Merge user prompt into template."""
+                            merge_prompt = dspy.InputField()
+                            merged_template = dspy.OutputField(desc="The template with variables filled in")
 
-                    merge_program = dspy.Predict(TemplateMergeSignature)
-                    response = merge_program(merge_prompt=merge_prompt)
+                        merge_program = dspy.Predict(TemplateMergeSignature)
+                        response = merge_program(merge_prompt=merge_prompt)
 
-                    # Check if response is valid
-                    if response and response.merged_template:
-                        merged_content = response.merged_template.strip()
+                        # Check if response is valid
+                        if response and hasattr(response, 'merged_template') and response.merged_template:
+                            merged_content = response.merged_template.strip()
 
-                        # Basic validation - ensure we got a reasonable response
-                        if len(merged_content) > 50 and any(var in merged_content for var in variables):
-                            return merged_content
+                            # Basic validation - ensure we got a reasonable response
+                            if len(merged_content) > 10 and any(var in merged_content for var in variables):
+                                print(f"Successfully merged template with {len(merged_content)} characters")
+                                return merged_content
+                            else:
+                                print(f"LLM template merging produced poor result (length: {len(merged_content)}), using fallback")
                         else:
-                            # If LLM response seems poor, return original prompt
-                            print("LLM template merging produced poor result, returning original prompt")
-                            return user_prompt
-                    else:
-                        # If LLM response is None or empty, return original prompt
-                        print("LLM template merging returned None or empty response, returning original prompt")
-                        return user_prompt
+                            print(f"LLM template merging returned None or empty response: {response}, using fallback")
 
                 except Exception as e:
-                    print(f"Template merging failed: {e}")
-                    return user_prompt
+                    print(f"LLM template merging failed: {e}, using fallback method")
+
+            # Fallback: Simple string replacement method
+            print("Using simple string replacement fallback for template merging")
+            merged_content = template_content
+
+            # Simple fallback: try to fill common variables with prompt content
+            if "{question}" in template_content and len(user_prompt) > 10:
+                merged_content = merged_content.replace("{question}", user_prompt[:200] + "..." if len(user_prompt) > 200 else user_prompt)
+            if "{input}" in template_content:
+                merged_content = merged_content.replace("{input}", user_prompt)
+            if "{context}" in template_content and len(user_prompt) > 50:
+                merged_content = merged_content.replace("{context}", user_prompt)
+
+            # If we still have unfilled variables, try to fill them with generic content
+            remaining_variables = [var for var in variables if "{" + var + "}" in merged_content]
+            for var in remaining_variables[:3]:  # Fill up to 3 remaining variables
+                if "{" + var + "}" in merged_content:
+                    # Use parts of the user prompt or generic content
+                    if var.lower() in ["instruction", "task", "query"]:
+                        merged_content = merged_content.replace("{" + var + "}", user_prompt[:100])
+                    elif var.lower() in ["answer", "response", "output"]:
+                        merged_content = merged_content.replace("{" + var + "}", "[Answer will be generated based on the above]")
+                    else:
+                        merged_content = merged_content.replace("{" + var + "}", f"[Content for {var}]")
+
+            print(f"Fallback template merging completed with {len(merged_content)} characters")
+            return merged_content
 
         except Exception as e:
             print(f"Template merging error: {e}")
