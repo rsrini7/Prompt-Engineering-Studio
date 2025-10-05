@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { OptimizationConfig, CostEstimation, OptimizationStatus, OptimizationResult, LLMConfig } from '../types/promptAnalyzer';
 import OptimizationResults from './OptimizationResults';
+import DatasetBuilder from './DatasetBuilder';
 
 interface OptimizationPanelProps {
     optimizationConfig: OptimizationConfig;
@@ -31,6 +32,12 @@ const OptimizationPanel: React.FC<OptimizationPanelProps> = ({
     currentModel,
     useLlmRefiner
 }) => {
+    const [isDatasetBuilderOpen, setIsDatasetBuilderOpen] = useState(false);
+
+    const handleDatasetCreated = (file: File) => {
+        onOptimizationConfigChange({ selectedFile: file });
+    };
+
     return (
         <>
              {/* Quick Configuration */}
@@ -87,7 +94,7 @@ const OptimizationPanel: React.FC<OptimizationPanelProps> = ({
                 </div>
             </div>
 
-            {/* File Upload & Optimize Button */}
+            {/* File Upload & Dataset Builder & Optimize Button */}
             <div style={{
                 display: 'flex',
                 gap: '1rem',
@@ -105,6 +112,25 @@ const OptimizationPanel: React.FC<OptimizationPanelProps> = ({
                         accept=".csv,.jsonl"
                     />
                 </label>
+
+                <button
+                    onClick={() => setIsDatasetBuilderOpen(true)}
+                    style={{
+                        backgroundColor: 'var(--primary-accent-hover)',
+                        color: 'white',
+                        border: 'none',
+                        padding: '0.75rem 1.5rem',
+                        borderRadius: '8px',
+                        cursor: 'pointer',
+                        fontSize: '0.9rem',
+                        fontWeight: '500',
+                        transition: 'all 0.2s ease'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--primary-accent)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--primary-accent-hover)'}
+                >
+                    📊 Build Dataset
+                </button>
 
                 <button
                     onClick={onOptimize}
@@ -211,6 +237,13 @@ const OptimizationPanel: React.FC<OptimizationPanelProps> = ({
             <OptimizationResults
                 optimizationStatus={optimizationStatus}
                 optimizationResult={optimizationResult}
+            />
+
+            {/* Dataset Builder Modal */}
+            <DatasetBuilder
+                isOpen={isDatasetBuilderOpen}
+                onClose={() => setIsDatasetBuilderOpen(false)}
+                onDatasetCreated={handleDatasetCreated}
             />
         </>
     );

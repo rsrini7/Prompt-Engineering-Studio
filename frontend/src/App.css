@@ -814,6 +814,25 @@ button[title*="Switch to"]:hover {
     background: rgba(59, 130, 246, 0.5);
 }
 
+/* --- Dataset Builder Modal Scrollbar --- */
+.dataset-builder-examples::-webkit-scrollbar {
+    width: 6px;
+}
+
+.dataset-builder-examples::-webkit-scrollbar-track {
+    background: rgba(13, 142, 255, 0.1);
+    border-radius: 3px;
+}
+
+.dataset-builder-examples::-webkit-scrollbar-thumb {
+    background: rgba(13, 142, 255, 0.4);
+    border-radius: 3px;
+}
+
+.dataset-builder-examples::-webkit-scrollbar-thumb:hover {
+    background: rgba(13, 142, 255, 0.6);
+}
+
 /* --- Optimization Results --- */
 .optimization-results {
     width: 100%;
