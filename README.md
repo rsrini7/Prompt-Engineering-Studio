@@ -296,12 +296,6 @@ This is what has been successfully built and is currently working in the applica
 
 This is the roadmap for what can be built on top of the current MVP foundation.
 
-### Core Functionality Enhancements
-* **Configurable Guardrails & Timeouts:** A UI to allow users to set their own limits on optimization time, LLM calls, or iterations to better manage resources.
-
-### Advanced AI & Optimization
-* **Configurable Guardrails & Timeouts:** A UI to allow users to set their own limits on optimization time, LLM calls, or iterations to better manage resources.
-
 ### Platform & Workflow
 * **Prompt Version History:** The ability to save different versions of a prompt, add notes, and easily revert to previous versions.
 * **A/B Testing Framework:** A dedicated UI to compare two different prompt versions against a dataset and see which one performs better on key metrics.
