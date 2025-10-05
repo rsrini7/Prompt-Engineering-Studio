@@ -30,6 +30,7 @@ An open-source IDE for designing, analyzing, and optimizing LLM prompts. This to
 * **Intelligent Template Suggestions:** Recommends relevant prompt templates from LangChain Hub based on the detected patterns in your prompt.
 * **UI-Based Dataset Builder:** Create datasets directly in the application with an intuitive modal interface - no CSV files needed.
 * **Export Options:** Export optimized prompts as JSON with metadata or as ready-to-use Python scripts with usage examples.
+* **A/B Testing Framework:** Compare two prompts head-to-head with statistical analysis, supporting exact match and LLM-as-a-Judge evaluation metrics.
 * **Automated Prompt Optimization:** Uses **DSPy** to automatically optimize your prompts by generating few-shot examples from a small dataset you provide.
 * **Modern UI:** A clean, responsive, dark-themed interface built for an efficient and pleasant workflow.
 
@@ -262,6 +263,35 @@ The application now includes AI-powered template population for seamless prompt 
 - **{examples}**: Example inputs/outputs when relevant
 - **Custom variables**: Any template-specific variables are intelligently filled
 
+### Using the A/B Testing Framework
+
+The application now includes a comprehensive A/B testing system for comparing prompt performance:
+
+1. **Switch to A/B Testing:** Click the "⚖️ A/B Testing" tab in the main interface
+2. **Configure Two Prompts:** Enter Prompt A and Prompt B in the respective text areas
+3. **Upload Dataset:** Provide a CSV/JSONL file with question-answer pairs for evaluation
+4. **Select Evaluation Metric:**
+   - **"Exact Match"** - Traditional string matching against ground truth
+   - **"LLM-as-a-Judge (Quality)"** - AI-powered qualitative evaluation (1-5 scale)
+5. **Configure LLM Settings:** Choose between Ollama (local) or custom provider configuration
+6. **Run Comparison:** Click "⚖️ Run A/B Test" to start the evaluation process
+7. **View Results:** Analyze comprehensive results including:
+   - Statistical summary with average scores and winner determination
+   - Win/loss/tie breakdown for each prompt
+   - Detailed row-by-row comparison table
+   - Color-coded results for easy interpretation
+
+**A/B Testing Benefits:**
+- **Statistical Rigor:** Comprehensive evaluation across entire dataset
+- **Multiple Metrics:** Choose between exact matching and qualitative assessment
+- **Visual Results:** Clear summary statistics and detailed breakdowns
+- **Flexible Configuration:** Support for various LLM providers and models
+- **Professional Analysis:** Winner determination with confidence margins
+
+**Evaluation Metrics:**
+- **Exact Match**: Best for factual Q&A, technical content, precise instructions
+- **LLM-as-a-Judge**: Ideal for creative writing, marketing copy, conversational AI, subjective content
+
 ---
 
 ## 📊 Project Status
@@ -289,6 +319,7 @@ This is what has been successfully built and is currently working in the applica
 
 * **UI-Based Dataset Builder:** Modal interface allowing users to create datasets directly in the application with question-answer pairs, automatically converted to CSV format.
 * **Export Options:** Complete export functionality for optimized prompts including JSON format with metadata and Python script format with usage examples.
+* **A/B Testing Framework:** Comprehensive prompt comparison system with statistical analysis, supporting both exact match and LLM-as-a-Judge evaluation metrics.
 
 ---
 
@@ -298,7 +329,6 @@ This is the roadmap for what can be built on top of the current MVP foundation.
 
 ### Platform & Workflow
 * **Prompt Version History:** The ability to save different versions of a prompt, add notes, and easily revert to previous versions.
-* **A/B Testing Framework:** A dedicated UI to compare two different prompt versions against a dataset and see which one performs better on key metrics.
 * **User Accounts & Collaboration:** A full authentication system allowing users to save their prompts to the cloud, create projects, and share them with team members.
 
 ---

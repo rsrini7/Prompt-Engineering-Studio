@@ -8,8 +8,12 @@ import PatternAnalysisResults from './PatternAnalysisResults';
 import TemplateSuggestions from './TemplateSuggestions';
 import MergedTemplatePreview from './MergedTemplatePreview';
 import OptimizationPanel from './OptimizationPanel';
+import ABTestingView from './ABTestingView';
 
 const PromptAnalyzer = () => {
+    // --- View Mode State ---
+    const [activeView, setActiveView] = useState<'engineering' | 'ab_testing'>('engineering');
+
     // --- Core state ---
     const [prompt, setPrompt] = useState<string>("Answer the following question.");
 
@@ -103,123 +107,189 @@ const PromptAnalyzer = () => {
         <div className="container">
             <h1 className="header">Prompt Engineering Studio</h1>
 
-            <PromptInputSection
-                prompt={prompt}
-                setPrompt={setPrompt}
-                onAnalyze={handleAnalyzeClick}
-                isLoading={isLoading}
-                llmConfig={llmConfig}
-                onLLMConfigChange={handleLLMConfigChange}
-            />
+            {/* View Mode Tabs */}
+            <div style={{
+                display: 'flex',
+                gap: '0',
+                marginBottom: '2rem',
+                backgroundColor: 'var(--background-dark)',
+                borderRadius: '12px',
+                padding: '0.5rem',
+                border: '1px solid var(--border-color)'
+            }}>
+                <button
+                    onClick={() => setActiveView('engineering')}
+                    style={{
+                        flex: 1,
+                        padding: '1rem 1.5rem',
+                        border: 'none',
+                        borderRadius: '8px',
+                        backgroundColor: activeView === 'engineering' ? 'var(--primary-accent)' : 'transparent',
+                        color: activeView === 'engineering' ? 'white' : 'var(--text-secondary)',
+                        fontSize: '1rem',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.5rem'
+                    }}
+                >
+                    <span>🚀</span>
+                    Prompt Engineering
+                </button>
 
-            <div className="three-panel-layout">
-                {/* Left Panel - Pattern Analysis */}
-                <div className="panel-left">
-                    <div className="panel-header">
-                        <h3 className="panel-title">🔍 Pattern Analysis</h3>
-                    </div>
-                    <div className="panel-content">
-                        <PatternAnalysisResults
-                            results={results}
-                            isLoading={isLoading}
-                        />
-
-                        {/* Loading and Error States for Pattern Analysis */}
-                        {isLoading && (
-                            <div className="results-panel" style={{
-                                backgroundColor: 'var(--background-panel)',
-                                border: '1px solid var(--border-color)',
-                                borderRadius: '12px',
-                                textAlign: 'center',
-                                padding: '2rem'
-                            }}>
-                                <div style={{ fontSize: '1.1rem', color: 'var(--primary-accent)', marginBottom: '0.5rem' }}>
-                                    🔍 Analyzing your prompt...
-                                </div>
-                                <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                                    This may take a few moments
-                                </div>
-                            </div>
-                        )}
-
-                        {error && (
-                            <div className="results-panel" style={{
-                                backgroundColor: 'var(--error-color)',
-                                color: 'white',
-                                borderRadius: '12px',
-                                padding: '1rem',
-                                textAlign: 'center'
-                            }}>
-                                <div style={{ fontSize: '0.9rem' }}>{error}</div>
-                            </div>
-                        )}
-
-                        {!isLoading && !error && !results && (
-                            <div className="results-panel" style={{
-                                backgroundColor: 'var(--background-panel)',
-                                border: '1px solid var(--border-color)',
-                                borderRadius: '12px',
-                                textAlign: 'center',
-                                padding: '2rem',
-                                color: 'var(--text-secondary)'
-                            }}>
-                                <div style={{ fontSize: '1rem', marginBottom: '0.5rem' }}>
-                                    📊 Ready to analyze
-                                </div>
-                                <div style={{ fontSize: '0.9rem' }}>
-                                    Enter a prompt above and click "Analyze" to get started
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                {/* Middle Panel - Template Workflow */}
-                <div className="panel-middle">
-                    <div className="panel-header">
-                        <h3 className="panel-title">💡 Template Workflow</h3>
-                    </div>
-                    <div className="panel-content">
-                        <TemplateSuggestions
-                            suggestions={suggestions}
-                            isLoading={isLoading}
-                            templatePreviewState={templatePreviewState}
-                            onTemplateVisible={handleTemplateVisible}
-                            onPreviewTemplate={handlePreviewTemplate}
-                            isMergingTemplate={isMergingTemplate}
-                        />
-
-                        <MergedTemplatePreview
-                            mergedTemplates={templatePreviewState.mergedTemplates}
-                            onApplyMergedTemplate={handleApplyMergedTemplate}
-                        />
-                    </div>
-                </div>
-
-                {/* Right Panel - Optimization Controls */}
-                <div className="panel-right">
-                    <div className="panel-header">
-                        <h3 className="panel-title">⚡ Optimization Controls</h3>
-                    </div>
-                    <div className="panel-content">
-                        <OptimizationPanel
-                            optimizationConfig={optimizationConfig}
-                            onOptimizationConfigChange={(config) => setOptimizationConfig(prev => ({ ...prev, ...config }))}
-                            costEstimation={costEstimation}
-                            isEstimatingCost={isEstimatingCost}
-                            optimizationStatus={optimizationStatus}
-                            optimizationResult={optimizationResult}
-                            optimizationError={optimizationError}
-                            onOptimize={handleOptimizeClick}
-                            onCostEstimationToggle={handleCostEstimationToggle}
-                            currentProvider={currentProvider}
-                            currentModel={currentModel}
-                            useLlmRefiner={llmConfig.useLlmRefiner}
-                        />
-                    </div>
-                </div>
+                <button
+                    onClick={() => setActiveView('ab_testing')}
+                    style={{
+                        flex: 1,
+                        padding: '1rem 1.5rem',
+                        border: 'none',
+                        borderRadius: '8px',
+                        backgroundColor: activeView === 'ab_testing' ? 'var(--primary-accent)' : 'transparent',
+                        color: activeView === 'ab_testing' ? 'white' : 'var(--text-secondary)',
+                        fontSize: '1rem',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        transition: 'all 0.2s ease',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.5rem'
+                    }}
+                >
+                    <span>⚖️</span>
+                    A/B Testing
+                </button>
             </div>
 
+            {/* Conditional Rendering Based on Active View */}
+            {activeView === 'engineering' ? (
+                <>
+                    <PromptInputSection
+                        prompt={prompt}
+                        setPrompt={setPrompt}
+                        onAnalyze={handleAnalyzeClick}
+                        isLoading={isLoading}
+                        llmConfig={llmConfig}
+                        onLLMConfigChange={handleLLMConfigChange}
+                    />
+
+                    <div className="three-panel-layout">
+                        {/* Left Panel - Pattern Analysis */}
+                        <div className="panel-left">
+                            <div className="panel-header">
+                                <h3 className="panel-title">🔍 Pattern Analysis</h3>
+                            </div>
+                            <div className="panel-content">
+                                <PatternAnalysisResults
+                                    results={results}
+                                    isLoading={isLoading}
+                                />
+
+                                {/* Loading and Error States for Pattern Analysis */}
+                                {isLoading && (
+                                    <div className="results-panel" style={{
+                                        backgroundColor: 'var(--background-panel)',
+                                        border: '1px solid var(--border-color)',
+                                        borderRadius: '12px',
+                                        textAlign: 'center',
+                                        padding: '2rem'
+                                    }}>
+                                        <div style={{ fontSize: '1.1rem', color: 'var(--primary-accent)', marginBottom: '0.5rem' }}>
+                                            🔍 Analyzing your prompt...
+                                        </div>
+                                        <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                                            This may take a few moments
+                                        </div>
+                                    </div>
+                                )}
+
+                                {error && (
+                                    <div className="results-panel" style={{
+                                        backgroundColor: 'var(--error-color)',
+                                        color: 'white',
+                                        borderRadius: '12px',
+                                        padding: '1rem',
+                                        textAlign: 'center'
+                                    }}>
+                                        <div style={{ fontSize: '0.9rem' }}>{error}</div>
+                                    </div>
+                                )}
+
+                                {!isLoading && !error && !results && (
+                                    <div className="results-panel" style={{
+                                        backgroundColor: 'var(--background-panel)',
+                                        border: '1px solid var(--border-color)',
+                                        borderRadius: '12px',
+                                        textAlign: 'center',
+                                        padding: '2rem',
+                                        color: 'var(--text-secondary)'
+                                    }}>
+                                        <div style={{ fontSize: '1rem', marginBottom: '0.5rem' }}>
+                                            📊 Ready to analyze
+                                        </div>
+                                        <div style={{ fontSize: '0.9rem' }}>
+                                            Enter a prompt above and click "Analyze" to get started
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Middle Panel - Template Workflow */}
+                        <div className="panel-middle">
+                            <div className="panel-header">
+                                <h3 className="panel-title">💡 Template Workflow</h3>
+                            </div>
+                            <div className="panel-content">
+                                <TemplateSuggestions
+                                    suggestions={suggestions}
+                                    isLoading={isLoading}
+                                    templatePreviewState={templatePreviewState}
+                                    onTemplateVisible={handleTemplateVisible}
+                                    onPreviewTemplate={handlePreviewTemplate}
+                                    isMergingTemplate={isMergingTemplate}
+                                />
+
+                                <MergedTemplatePreview
+                                    mergedTemplates={templatePreviewState.mergedTemplates}
+                                    onApplyMergedTemplate={handleApplyMergedTemplate}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Right Panel - Optimization Controls */}
+                        <div className="panel-right">
+                            <div className="panel-header">
+                                <h3 className="panel-title">⚡ Optimization Controls</h3>
+                            </div>
+                            <div className="panel-content">
+                                <OptimizationPanel
+                                    optimizationConfig={optimizationConfig}
+                                    onOptimizationConfigChange={(config) => setOptimizationConfig(prev => ({ ...prev, ...config }))}
+                                    costEstimation={costEstimation}
+                                    isEstimatingCost={isEstimatingCost}
+                                    optimizationStatus={optimizationStatus}
+                                    optimizationResult={optimizationResult}
+                                    optimizationError={optimizationError}
+                                    onOptimize={handleOptimizeClick}
+                                    onCostEstimationToggle={handleCostEstimationToggle}
+                                    currentProvider={currentProvider}
+                                    currentModel={currentModel}
+                                    useLlmRefiner={llmConfig.useLlmRefiner}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </>
+            ) : (
+                <ABTestingView
+                    llmConfig={llmConfig}
+                    onLLMConfigChange={handleLLMConfigChange}
+                />
+            )}
         </div>
     );
 };

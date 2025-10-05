@@ -372,5 +372,173 @@ class DspyService:
             
         # The new "optimized prompt" is the original instruction plus the learned examples
         optimized_prompt = f"{original_prompt}\n\n--- Examples ---\n{example_string}"
-        
+
         return optimized_prompt
+
+    def run_ab_test(self, prompt_a: str, prompt_b: str, file_content: bytes, filename: str,
+                   provider: str, model: str, api_key: str, metric: str = "exact_match") -> Dict[str, Any]:
+        """
+        Run A/B test comparison between two prompts using a provided dataset.
+
+        Args:
+            prompt_a: First prompt to test
+            prompt_b: Second prompt to test
+            file_content: Dataset file content
+            filename: Name of the file (for format detection)
+            provider: LLM provider
+            model: Model name
+            api_key: API key for the provider
+            metric: Evaluation metric ("exact_match" or "llm_as_a_judge")
+
+        Returns:
+            Dictionary containing detailed results and summary statistics
+        """
+        # 1. Configure the LLM
+        llm = self.configure_llm(provider, model, api_key)
+
+        # 2. Load and parse the dataset
+        if filename.endswith('.csv'):
+            df = pd.read_csv(io.BytesIO(file_content))
+        elif filename.endswith('.jsonl'):
+            df = pd.read_json(io.BytesIO(file_content), lines=True)
+        else:
+            raise ValueError("Unsupported file type. Please use .csv or .jsonl")
+
+        if df.empty:
+            raise ValueError("Dataset is empty")
+
+        # Convert to DSPy examples
+        examples = [dspy.Example(question=row['question'], answer=row['answer']).with_inputs('question')
+                   for _, row in df.iterrows()]
+
+        # 3. Set up evaluation metric
+        if metric == "llm_as_a_judge":
+            def evaluation_metric(example, pred, trace=None):
+                question = example.question
+                ground_truth = example.answer
+                generated_answer = pred.answer
+                return self.llm_as_a_judge_metric(generated_answer, ground_truth, question)
+        else:
+            evaluation_metric = dspy.evaluate.answer_exact_match
+
+        # 4. Create programs for both prompts
+        class PromptAProgram(dspy.Module):
+            def __init__(self):
+                super().__init__()
+                self.predictor = dspy.Predict(BasicQASignature, instructions=prompt_a)
+
+            def forward(self, question):
+                return self.predictor(question=question)
+
+        class PromptBProgram(dspy.Module):
+            def __init__(self):
+                super().__init__()
+                self.predictor = dspy.Predict(BasicQASignature, instructions=prompt_b)
+
+            def forward(self, question):
+                return self.predictor(question=question)
+
+        # 5. Run evaluation loop
+        detailed_results = []
+
+        try:
+            with dspy.context(lm=llm):
+                for i, example in enumerate(examples):
+                    try:
+                        # Generate answer with Prompt A
+                        program_a = PromptAProgram()
+                        result_a = program_a(question=example.question)
+                        answer_a = result_a.answer
+
+                        # Generate answer with Prompt B
+                        program_b = PromptBProgram()
+                        result_b = program_b(question=example.question)
+                        answer_b = result_b.answer
+
+                        # Evaluate both answers
+                        score_a = evaluation_metric(example, result_a)
+                        score_b = evaluation_metric(example, result_b)
+
+                        # Store detailed results
+                        detailed_results.append({
+                            "question": example.question,
+                            "expected_answer": example.answer,
+                            "prompt_a_answer": answer_a,
+                            "prompt_b_answer": answer_b,
+                            "prompt_a_score": score_a,
+                            "prompt_b_score": score_b
+                        })
+
+                    except Exception as e:
+                        print(f"Error evaluating example {i}: {e}")
+                        # Add error result with neutral scores
+                        detailed_results.append({
+                            "question": example.question,
+                            "expected_answer": example.answer,
+                            "prompt_a_answer": "ERROR",
+                            "prompt_b_answer": "ERROR",
+                            "prompt_a_score": 0.5,
+                            "prompt_b_score": 0.5,
+                            "error": str(e)
+                        })
+
+        except Exception as e:
+            print(f"DSPy context error: {e}")
+            # Fallback: return basic structure with error info
+            return {
+                "error": f"A/B test failed: {str(e)}",
+                "prompt_a": prompt_a,
+                "prompt_b": prompt_b,
+                "total_examples": len(examples),
+                "detailed_results": []
+            }
+
+        # 6. Calculate summary statistics
+        if detailed_results:
+            scores_a = [r["prompt_a_score"] for r in detailed_results if "error" not in r]
+            scores_b = [r["prompt_b_score"] for r in detailed_results if "error" not in r]
+
+            avg_score_a = sum(scores_a) / len(scores_a) if scores_a else 0.0
+            avg_score_b = sum(scores_b) / len(scores_b) if scores_b else 0.0
+
+            # Count wins, losses, ties
+            wins_a = sum(1 for a, b in zip(scores_a, scores_b) if a > b)
+            wins_b = sum(1 for a, b in zip(scores_a, scores_b) if a < b)
+            ties = sum(1 for a, b in zip(scores_a, scores_b) if a == b)
+
+            # Determine winner
+            if avg_score_a > avg_score_b:
+                winner = "Prompt A"
+            elif avg_score_b > avg_score_a:
+                winner = "Prompt B"
+            else:
+                winner = "Tie"
+
+            summary = {
+                "total_examples": len(examples),
+                "successful_evaluations": len([r for r in detailed_results if "error" not in r]),
+                "prompt_a_avg_score": round(avg_score_a, 4),
+                "prompt_b_avg_score": round(avg_score_b, 4),
+                "prompt_a_wins": wins_a,
+                "prompt_b_wins": wins_b,
+                "ties": ties,
+                "winner": winner,
+                "winning_margin": round(abs(avg_score_a - avg_score_b), 4)
+            }
+        else:
+            summary = {
+                "total_examples": len(examples),
+                "successful_evaluations": 0,
+                "error": "No successful evaluations completed"
+            }
+
+        # 7. Return complete results
+        return {
+            "summary": summary,
+            "detailed_results": detailed_results,
+            "configuration": {
+                "metric": metric,
+                "provider": provider,
+                "model": model
+            }
+        }

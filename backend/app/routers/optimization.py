@@ -59,3 +59,32 @@ async def optimize_prompt_endpoint(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/evaluate/ab_test", tags=["A/B Testing"])
+async def run_ab_test(
+    prompt_a: str = Form(...),
+    prompt_b: str = Form(...),
+    dataset: UploadFile = File(...),
+    provider: str = Form(...),
+    model: str = Form(...),
+    api_key: str = Form(None),
+    metric: str = Form("exact_match")
+):
+    """
+    Run A/B test comparison between two prompts using a provided dataset.
+    """
+    try:
+        file_content = await dataset.read()
+        ab_test_results = dspy_service.run_ab_test(
+            prompt_a=prompt_a,
+            prompt_b=prompt_b,
+            file_content=file_content,
+            filename=dataset.filename,
+            provider=provider,
+            model=model,
+            api_key=api_key,
+            metric=metric
+        )
+        return ab_test_results
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
