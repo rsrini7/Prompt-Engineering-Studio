@@ -38,6 +38,10 @@ const PromptAnalyzer = () => {
     const [optimizationResult, setOptimizationResult] = useState<OptimizationResult | null>(null);
     const [optimizationError, setOptimizationError] = useState<string>('');
 
+    const [provider, setProvider] = useState<string>('ollama');
+    const [model, setModel] = useState<string>('gemma:2b');
+    const [apiKey, setApiKey] = useState<string>('');
+
     // This useEffect hook handles the real-time analysis and suggestions
     useEffect(() => {
         if (!prompt.trim()) {
@@ -78,17 +82,36 @@ const PromptAnalyzer = () => {
 
     // Handler function for the optimize button
     const handleOptimizeClick = async () => {
-        if (!selectedFile) {
-            setOptimizationError("Please select a dataset file first.");
-            return;
-        }
-        setOptimizationStatus('optimizing');
+        // Reset previous errors on each new attempt
         setOptimizationError('');
         setOptimizationResult(null);
+        setOptimizationStatus('idle');
 
+        // --- VALIDATION CHECKS ---
+        if (!selectedFile) {
+            setOptimizationError("Please select a dataset file first.");
+            setOptimizationStatus('error'); // This line was missing
+            return;
+        }
+        if (!model.trim()) {
+            setOptimizationError("Please enter a model name.");
+            setOptimizationStatus('error'); // This line was missing
+            return;
+        }
+        if ((provider === 'openrouter' || provider === 'groq') && !apiKey.trim()) {
+            setOptimizationError(`Please enter an API key for ${provider}.`);
+            setOptimizationStatus('error'); // This line was missing
+            return;
+        }
+
+        setOptimizationStatus('optimizing');
         const formData = new FormData();
         formData.append('prompt', prompt);
         formData.append('dataset', selectedFile);
+        formData.append('provider', provider);
+        formData.append('model', model);
+        formData.append('api_key', apiKey);
+
 
         try {
             const response = await axios.post<OptimizationResult>('http://127.0.0.1:8000/api/optimize', formData, {
@@ -99,8 +122,9 @@ const PromptAnalyzer = () => {
 
             setOptimizationResult(response.data);
             setOptimizationStatus('success');
-        } catch (err) {
-            setOptimizationError("Optimization failed. Check the console and backend logs.");
+        }  catch (err: any) {
+            const errorDetail = err.response?.data?.detail || "Optimization failed. Check console and backend logs.";
+            setOptimizationError(errorDetail);
             setOptimizationStatus('error');
             console.error(err);
         }
@@ -173,6 +197,32 @@ const PromptAnalyzer = () => {
                     <div className="results-panel">
                         <h2 className="sub-header">Optimize Prompt</h2>
                         <div className="optimize-controls">
+                            <label className="input-label">Provider</label>
+                            <select className="select-input" value={provider} onChange={e => setProvider(e.target.value)}>
+                                <option value="ollama">Ollama (Local)</option>
+                                <option value="openrouter">OpenRouter</option>
+                                <option value="groq">Groq</option>
+                            </select>
+                            <label className="input-label">Model Name</label>
+                            <input 
+                                type="text" 
+                                className="text-input" 
+                                value={model} 
+                                onChange={e => setModel(e.target.value)}
+                                placeholder={provider === 'ollama' ? 'e.g., gemma:2b' : 'e.g., meta-llama/llama-3-8b-instruct'}
+                            />
+                            {(provider === 'openrouter' || provider === 'groq') && (
+                                <>
+                                    <label className="input-label">API Key</label>
+                                    <input 
+                                        type="password"
+                                        className="text-input"
+                                        value={apiKey}
+                                        onChange={e => setApiKey(e.target.value)}
+                                        placeholder={`Your ${provider} API Key`}
+                                    />
+                                </>
+                            )}
                             <label className="file-input-label">
                                 {selectedFile ? `Selected: ${selectedFile.name}` : 'Choose Dataset File'}
                                 <input type="file" onChange={(e) => setSelectedFile(e.target.files ? e.target.files[0] : null)} accept=".csv,.jsonl"/>

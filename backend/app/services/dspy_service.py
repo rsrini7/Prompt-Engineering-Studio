@@ -10,14 +10,41 @@ class BasicQASignature(dspy.Signature):
     answer = dspy.OutputField()
 
 class DspyService:
-    def __init__(self):
-        # Configure the LLM. This points to a local Ollama model.
-        # Ensure you have Ollama running with a model like 'llama3' or 'gemma:2b'.
-        lm = dspy.LM('ollama_chat/gemma:2b', api_base='http://localhost:11434', api_key='')
-        dspy.configure(lm=lm)
+    def configure_llm(self, provider: str, model: str, api_key: str):
+        """Configures the DSPy LLM based on the selected provider."""
+        if provider == "ollama":
+            # For Ollama, the model name is passed directly
+            llm = dspy.LM(model=model, max_tokens=150, api_base='http://localhost:11434', api_key='')
+        elif provider == "openrouter":
+            # OpenRouter uses an OpenAI-compatible API
+            if not api_key:
+                raise ValueError("API key is required for OpenRouter.")
+            llm = dspy.OpenAI(
+                model=model, # e.g., "meta-llama/llama-3-8b-instruct"
+                api_key=api_key,
+                api_base="https://openrouter.ai/api/v1",
+                max_tokens=150
+            )
+        elif provider == "groq":
+            # Groq also uses an OpenAI-compatible API
+            if not api_key:
+                raise ValueError("API key is required for Groq.")
+            llm = dspy.OpenAI(
+                model=model, # e.g., "llama3-8b-8192"
+                api_key=api_key,
+                api_base="https://api.groq.com/openai/v1",
+                max_tokens=150
+            )
+        else:
+            raise ValueError(f"Unsupported provider: {provider}")
+        
+        dspy.settings.configure(lm=llm)        
 
-    def optimize_prompt(self, original_prompt: str, file_content: bytes, filename: str) -> str:
-        # 1. Load the dataset
+    def optimize_prompt(self, original_prompt: str, file_content: bytes, filename: str, provider: str, model: str, api_key: str) -> str:
+         # 1. Configure the LLM for this specific request
+        self.configure_llm(provider, model, api_key)
+
+        # 2. Load the dataset
         if filename.endswith('.csv'):
             df = pd.read_csv(io.BytesIO(file_content))
         elif filename.endswith('.jsonl'):
