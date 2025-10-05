@@ -47,11 +47,13 @@ const PromptAnalyzer = () => {
     const [refinerApiKey, setRefinerApiKey] = useState<string>('');
 
     // --- State for optimization ---
-    const [provider, setProvider] = useState<string>('ollama');
-    const [model, setModel] = useState<string>('gemma:2b');
-    const [apiKey, setApiKey] = useState<string>('');
     const [metric, setMetric] = useState<string>('exact_match');
     const [maxIterations, setMaxIterations] = useState<number>(4);
+
+    // Use LLM refiner config for optimization (shared configuration)
+    const currentProvider = useLlmRefiner ? refinerProvider : 'ollama';
+    const currentModel = useLlmRefiner ? refinerModel : 'gemma:2b';
+    const currentApiKey = useLlmRefiner ? refinerApiKey : '';
 
     // --- State for cost estimation ---
     const [costEstimation, setCostEstimation] = useState<any>(null);
@@ -110,18 +112,18 @@ const PromptAnalyzer = () => {
 
     // Auto-trigger cost estimation when file or model changes
     useEffect(() => {
-        if (selectedFile && model && showCostEstimation && activeTab === 'optimize') {
+        if (selectedFile && currentModel && showCostEstimation && activeTab === 'optimize') {
             const timeoutId = setTimeout(() => {
                 handleCostEstimation();
             }, 1000); // 1 second delay to avoid excessive API calls
 
             return () => clearTimeout(timeoutId);
         }
-    }, [selectedFile, model, maxIterations, provider, showCostEstimation, activeTab]);
+    }, [selectedFile, currentModel, maxIterations, currentProvider, showCostEstimation, activeTab]);
 
     // Handle cost estimation
     const handleCostEstimation = async () => {
-        if (!selectedFile || !model) {
+        if (!selectedFile || !currentModel) {
             setCostEstimation(null);
             return;
         }
@@ -130,11 +132,11 @@ const PromptAnalyzer = () => {
         try {
             const estimationFormData = new FormData();
             estimationFormData.append('dataset', selectedFile);
-            estimationFormData.append('provider', provider);
-            estimationFormData.append('model', model);
+            estimationFormData.append('provider', currentProvider);
+            estimationFormData.append('model', currentModel);
             estimationFormData.append('max_iterations', maxIterations.toString());
 
-            console.log('Estimating cost for:', { provider, model, maxIterations, file: selectedFile.name });
+            console.log('Estimating cost for:', { provider: currentProvider, model: currentModel, maxIterations, file: selectedFile.name });
 
             const response = await axios.post('http://127.0.0.1:8000/api/optimize/estimate', estimationFormData);
             console.log('Cost estimation response:', response.data);
@@ -196,22 +198,22 @@ const PromptAnalyzer = () => {
         // --- VALIDATION CHECKS ---
         if (!selectedFile) {
             setOptimizationError("Please select a dataset file first.");
-            setOptimizationStatus('error'); // This line was missing
+            setOptimizationStatus('error');
             return;
         }
-        if (!model.trim()) {
+        if (!currentModel.trim()) {
             setOptimizationError("Please enter a model name.");
-            setOptimizationStatus('error'); // This line was missing
+            setOptimizationStatus('error');
             return;
         }
-        if ((provider === 'openrouter' || provider === 'groq') && !apiKey.trim()) {
-            setOptimizationError(`Please enter an API key for ${provider}.`);
-            setOptimizationStatus('error'); // This line was missing
+        if ((currentProvider === 'openrouter' || currentProvider === 'groq') && !currentApiKey.trim()) {
+            setOptimizationError(`Please enter an API key for ${currentProvider}.`);
+            setOptimizationStatus('error');
             return;
         }
 
         // Check cost estimation and confirm if expensive (cloud providers)
-        if (costEstimation && !costEstimation.error && provider !== 'ollama' && costEstimation.total_cost_usd > 0.001) {
+        if (costEstimation && !costEstimation.error && currentProvider !== 'ollama' && costEstimation.total_cost_usd > 0.001) {
             const confirmed = window.confirm(
                 `This optimization may cost approximately $${costEstimation.total_cost_usd.toFixed(6)}. Do you want to proceed?`
             );
@@ -225,9 +227,9 @@ const PromptAnalyzer = () => {
         const formData = new FormData();
         formData.append('prompt', prompt);
         formData.append('dataset', selectedFile);
-        formData.append('provider', provider);
-        formData.append('model', model);
-        formData.append('api_key', apiKey);
+        formData.append('provider', currentProvider);
+        formData.append('model', currentModel);
+        formData.append('api_key', currentApiKey);
         formData.append('metric', metric);
         formData.append('max_iterations', maxIterations.toString());
 
@@ -250,557 +252,461 @@ const PromptAnalyzer = () => {
     };
 
    return (
-        <div className="container">
-            <h1 className="header">Prompt Engineering Studio</h1>
-            <div className="main-grid">
-                {/* Left column for the main editor and optimization results */}
-                <div className="editor-column">
-                    <div className="results-panel editor-container">
-                        <h2 className="sub-header">Your Prompt</h2>
-                        <textarea
-                            className="prompt-textarea"
-                            value={prompt}
-                            onChange={(e) => setPrompt(e.target.value)}
-                            placeholder="Enter your prompt here..."
-                        />
-                    </div>
-                    {optimizationStatus === 'success' && optimizationResult && (
-                        <div className="results-panel optimization-results"> {/* Add 'optimization-results' class */}
-                            <h2 className="sub-header">🚀 Optimization Complete</h2>
-                            <div className="optimization-results-grid">
-                                <div>
-                                    <h4 className="result-header">Before</h4>
-                                    <pre className="prompt-box">{optimizationResult.original_prompt}</pre>
-                                </div>
-                                <div>
-                                    <h4 className="result-header">After</h4>
-                                    <pre className="prompt-box">{optimizationResult.optimized_prompt}</pre>
-                                </div>
-                            </div>
-                        </div>
-                    )}
-                </div>
+       <div className="container">
+           <h1 className="header">Prompt Engineering Studio</h1>
 
-                {/* Right column for analysis and optimization controls */}
-                <div className="analysis-column">
-                    {/* Tabbed Interface for Better Organization */}
-                    <div className="tabbed-interface">
-                        {/* Tab Navigation */}
-                        <div className="tab-navigation" style={{
-                            display: 'flex',
-                            borderBottom: '2px solid var(--border-color)',
-                            marginBottom: '1rem'
-                        }}>
-                            <button
-                                className={`tab-button ${activeTab === 'analyze' ? 'active' : ''}`}
-                                onClick={() => setActiveTab('analyze')}
-                                style={{
-                                    flex: 1,
-                                    padding: '0.75rem 1rem',
-                                    backgroundColor: activeTab === 'analyze' ? 'var(--primary-accent)' : 'var(--background-panel)',
-                                    color: activeTab === 'analyze' ? 'white' : 'var(--text-primary)',
-                                    border: 'none',
-                                    borderRadius: '8px 8px 0 0',
-                                    cursor: 'pointer',
-                                    fontSize: '0.9rem',
-                                    fontWeight: '500',
-                                    transition: 'all 0.2s ease'
-                                }}
-                            >
-                                🔍 Analyze
-                            </button>
-                            <button
-                                className={`tab-button ${activeTab === 'optimize' ? 'active' : ''}`}
-                                onClick={() => setActiveTab('optimize')}
-                                style={{
-                                    flex: 1,
-                                    padding: '0.75rem 1rem',
-                                    backgroundColor: activeTab === 'optimize' ? 'var(--primary-accent)' : 'var(--background-panel)',
-                                    color: activeTab === 'optimize' ? 'white' : 'var(--text-primary)',
-                                    border: 'none',
-                                    borderRadius: '8px 8px 0 0',
-                                    cursor: 'pointer',
-                                    fontSize: '0.9rem',
-                                    fontWeight: '500',
-                                    transition: 'all 0.2s ease'
-                                }}
-                            >
-                                ⚡ Optimize
-                            </button>
-                        </div>
+           {/* Compact Prompt Input Section */}
+           <div className="prompt-section" style={{
+               backgroundColor: 'var(--background-panel)',
+               padding: '1.5rem',
+               borderRadius: '12px',
+               marginBottom: '1.5rem',
+               border: '1px solid var(--border-color)'
+           }}>
+               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                   <h2 className="sub-header" style={{ margin: 0 }}>✏️ Your Prompt</h2>
+                   <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                       <button
+                           onClick={handleAnalyzeClick}
+                           disabled={isLoading || !prompt.trim()}
+                           style={{
+                               backgroundColor: 'var(--primary-accent)',
+                               color: 'white',
+                               border: 'none',
+                               padding: '0.75rem 1.5rem',
+                               borderRadius: '8px',
+                               cursor: isLoading || !prompt.trim() ? 'not-allowed' : 'pointer',
+                               fontSize: '0.9rem',
+                               fontWeight: '500',
+                               opacity: isLoading || !prompt.trim() ? 0.6 : 1
+                           }}
+                       >
+                           {isLoading ? '🔍 Analyzing...' : '🔍 Analyze'}
+                       </button>
+                       <button
+                           onClick={() => {
+                               setActiveTab('optimize');
+                               // Scroll to optimization section
+                               setTimeout(() => {
+                                   const optimizeSection = document.querySelector('.controls-column');
+                                   if (optimizeSection) {
+                                       optimizeSection.scrollIntoView({
+                                           behavior: 'smooth',
+                                           block: 'center'
+                                       });
+                                   }
+                               }, 100);
+                           }}
+                           style={{
+                               backgroundColor: 'var(--background-card)',
+                               color: 'var(--text-primary)',
+                               border: '1px solid var(--border-color)',
+                               padding: '0.75rem 1.5rem',
+                               borderRadius: '8px',
+                               cursor: 'pointer',
+                               fontSize: '0.9rem',
+                               fontWeight: '500',
+                               position: 'relative'
+                           }}
+                           title="🔄 Switch to optimization tab"
+                       >
+                           ⚡ Go to Optimize
+                       </button>
+                   </div>
+               </div>
+               <textarea
+                   className="prompt-textarea"
+                   value={prompt}
+                   onChange={(e) => setPrompt(e.target.value)}
+                   placeholder="Enter your prompt here..."
+                   rows={8}
+               />
 
-                        {/* Tab Content */}
-                        <div className="tab-content">
-                            {/* Analysis Tab */}
-                            {activeTab === 'analyze' && (
-                                <div className="analysis-tab">
-                                    <div className="results-panel">
-                                        <h2 className="sub-header">Pattern Analysis</h2>
+               {/* Quick LLM Refiner Toggle */}
+               <div style={{ marginTop: '1rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                   <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                       <input
+                           type="checkbox"
+                           checked={useLlmRefiner}
+                           onChange={(e) => setUseLlmRefiner(e.target.checked)}
+                           style={{ width: 'auto' }}
+                       />
+                       <span>🤖 LLM Refiner</span>
+                   </label>
+                   {useLlmRefiner && (
+                       <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                           <select
+                               value={refinerProvider}
+                               onChange={(e) => setRefinerProvider(e.target.value)}
+                               style={{
+                                   padding: '0.25rem 0.5rem',
+                                   backgroundColor: 'var(--background-card)',
+                                   color: 'var(--text-primary)',
+                                   border: '1px solid var(--border-color)',
+                                   borderRadius: '4px',
+                                   fontSize: '0.8rem'
+                               }}
+                           >
+                               <option value="ollama">Ollama</option>
+                               <option value="openrouter">OpenRouter</option>
+                               <option value="groq">Groq</option>
+                           </select>
+                           <input
+                               type="text"
+                               value={refinerModel}
+                               onChange={(e) => setRefinerModel(e.target.value)}
+                               placeholder={refinerProvider === 'ollama' ? 'gemma:2b' : 'meta-llama/llama-3-8b-instruct'}
+                               style={{
+                                   padding: '0.25rem 0.5rem',
+                                   backgroundColor: 'var(--background-card)',
+                                   color: 'var(--text-primary)',
+                                   border: '1px solid var(--border-color)',
+                                   borderRadius: '4px',
+                                   fontSize: '0.8rem',
+                                   width: '150px'
+                               }}
+                           />
+                       </div>
+                   )}
+               </div>
+           </div>
 
-                                        {/* Quick Action Bar */}
-                                        <div className="quick-actions" style={{
-                                            display: 'flex',
-                                            gap: '1rem',
-                                            marginBottom: '1rem',
-                                            alignItems: 'center',
-                                            flexWrap: 'wrap'
-                                        }}>
-                                            {/* LLM Refiner Toggle */}
-                                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                                                <input
-                                                    type="checkbox"
-                                                    checked={useLlmRefiner}
-                                                    onChange={(e) => setUseLlmRefiner(e.target.checked)}
-                                                    style={{ width: 'auto' }}
-                                                />
-                                                <span>🤖 LLM Refiner</span>
-                                            </label>
+           {/* Main Content Area */}
+           <div className="main-grid">
+               {/* Left column for results and templates */}
+               <div className="results-column" style={{ width: '100%' }}>
+                   {/* Pattern Analysis Results */}
+                   {results && !isLoading && (
+                       <div className="results-panel" style={{
+                           backgroundColor: 'var(--background-panel)',
+                           border: '1px solid var(--border-color)',
+                           borderRadius: '12px',
+                           marginBottom: '1.5rem'
+                       }}>
+                           <h2 className="sub-header" style={{ marginBottom: '1rem' }}>🔍 Pattern Analysis</h2>
 
-                                            {/* Analyze Button */}
-                                            <button
-                                                onClick={handleAnalyzeClick}
-                                                disabled={isLoading || !prompt.trim()}
-                                                style={{
-                                                    backgroundColor: 'var(--primary-accent)',
-                                                    color: 'white',
-                                                    border: 'none',
-                                                    padding: '0.5rem 1rem',
-                                                    borderRadius: '6px',
-                                                    cursor: isLoading || !prompt.trim() ? 'not-allowed' : 'pointer',
-                                                    fontSize: '0.9rem',
-                                                    fontWeight: '500',
-                                                    opacity: isLoading || !prompt.trim() ? 0.6 : 1
-                                                }}
-                                            >
-                                                {isLoading ? '🔍 Analyzing...' : '🔍 Analyze'}
-                                            </button>
-                                        </div>
+                           {/* Pattern Cards */}
+                           <div className="patterns-grid">
+                               {Object.values(results.patterns).map((pattern) => (
+                                   <div key={pattern.pattern} className="pattern-card">
+                                       <div className="pattern-title">
+                                           {pattern.pattern.replace(/_/g, ' ')}
+                                       </div>
+                                       <div className="pattern-category">
+                                           {pattern.category}
+                                       </div>
+                                       <div style={{
+                                           backgroundColor: pattern.confidence > 0.7 ? '#10b981' : pattern.confidence > 0.4 ? '#f59e0b' : '#ef4444',
+                                           color: 'white',
+                                           padding: '0.25rem 0.5rem',
+                                           borderRadius: '12px',
+                                           fontSize: '0.7rem',
+                                           fontWeight: 'bold',
+                                           marginTop: '0.5rem'
+                                       }}>
+                                           {Math.round(pattern.confidence * 100)}% confidence
+                                       </div>
+                                   </div>
+                               ))}
+                           </div>
+                       </div>
+                   )}
 
-                                        {/* LLM Refiner Configuration (Collapsible) */}
-                                        {useLlmRefiner && (
-                                            <div className="llm-config-panel" style={{
-                                                backgroundColor: 'var(--background-dark)',
-                                                padding: '1rem',
-                                                borderRadius: '8px',
-                                                marginBottom: '1rem',
-                                                animation: 'fadeIn 0.3s ease-in-out'
-                                            }}>
-                                                <h4 style={{ margin: '0 0 0.75rem 0', color: 'var(--primary-accent)' }}>🤖 LLM Configuration</h4>
-                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                                                    <div>
-                                                        <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                                                            Provider
-                                                        </label>
-                                                        <select
-                                                            value={refinerProvider}
-                                                            onChange={(e) => setRefinerProvider(e.target.value)}
-                                                            style={{
-                                                                width: '100%',
-                                                                padding: '0.5rem',
-                                                                backgroundColor: 'var(--background-card)',
-                                                                color: 'var(--text-primary)',
-                                                                border: '1px solid var(--border-color)',
-                                                                borderRadius: '4px'
-                                                            }}
-                                                        >
-                                                            <option value="ollama">Ollama</option>
-                                                            <option value="openrouter">OpenRouter</option>
-                                                            <option value="groq">Groq</option>
-                                                        </select>
-                                                    </div>
+                   {/* Template Suggestions */}
+                   {suggestions.length > 0 && !isLoading && (
+                       <div className="results-panel" style={{
+                           backgroundColor: 'var(--background-panel)',
+                           border: '1px solid var(--border-color)',
+                           borderRadius: '12px'
+                       }}>
+                           <h2 className="sub-header" style={{ marginBottom: '1rem' }}>💡 Template Suggestions</h2>
 
-                                                    <div>
-                                                        <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                                                            Model
-                                                        </label>
-                                                        <input
-                                                            type="text"
-                                                            value={refinerModel}
-                                                            onChange={(e) => setRefinerModel(e.target.value)}
-                                                            placeholder={refinerProvider === 'ollama' ? 'gemma:2b' : 'meta-llama/llama-3-8b-instruct'}
-                                                            style={{
-                                                                width: '100%',
-                                                                padding: '0.5rem',
-                                                                backgroundColor: 'var(--background-card)',
-                                                                color: 'var(--text-primary)',
-                                                                border: '1px solid var(--border-color)',
-                                                                borderRadius: '4px'
-                                                            }}
-                                                        />
-                                                    </div>
-                                                </div>
+                           <div className="suggestions-list">
+                               {suggestions.slice(0, 6).map((suggestion) => (
+                                   <div key={suggestion.name} className="suggestion-card">
+                                       <div className="suggestion-name">
+                                           {suggestion.name}
+                                       </div>
+                                       <div className="suggestion-score">
+                                           {suggestion.score}% match
+                                       </div>
 
-                                                {(refinerProvider === 'openrouter' || refinerProvider === 'groq') && (
-                                                    <div style={{ marginTop: '0.75rem' }}>
-                                                        <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                                                            API Key
-                                                        </label>
-                                                        <input
-                                                            type="password"
-                                                            value={refinerApiKey}
-                                                            onChange={(e) => setRefinerApiKey(e.target.value)}
-                                                            placeholder={`${refinerProvider} API Key`}
-                                                            style={{
-                                                                width: '100%',
-                                                                padding: '0.5rem',
-                                                                backgroundColor: 'var(--background-card)',
-                                                                color: 'var(--text-primary)',
-                                                                border: '1px solid var(--border-color)',
-                                                                borderRadius: '4px'
-                                                            }}
-                                                        />
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
+                                       <div className="template-preview">
+                                           Template preview will be loaded...
+                                       </div>
 
-                                        {/* Pattern Results */}
-                                        {isLoading && <p>Analyzing...</p>}
-                                        {error && <p className="error-text">{error}</p>}
-                                        {results && !isLoading && Object.keys(results.patterns).length > 0 && (
-                                            <div className="patterns-grid">
-                                                {Object.values(results.patterns).map((p) => (
-                                                    <div key={p.pattern} className="pattern-card">
-                                                        <h3 className="pattern-title">{p.pattern.replace(/_/g, ' ')}</h3>
-                                                        <p className="pattern-category">{p.category}</p>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
+                                       <button
+                                           className="merge-button"
+                                           onClick={() => handleMergeTemplate(suggestion.name)}
+                                           disabled={isMergingTemplate}
+                                       >
+                                           {isMergingTemplate ? '🔄 Merging...' : '🚀 Merge & Use'}
+                                       </button>
+                                   </div>
+                               ))}
+                           </div>
 
-                                    {/* Template Suggestions - Enhanced View */}
-                                    <div className="results-panel" style={{ marginTop: '1rem' }}>
-                                        <h2 className="sub-header">💡 Templates</h2>
-                                        {isLoading && <p>Loading suggestions...</p>}
-                                        {suggestions.length > 0 && !isLoading && (
-                                            <div className="suggestions-list">
-                                                {suggestions.slice(0, 3).map((s) => (
-                                                    <div key={s.name} className="suggestion-card" style={{
-                                                        display: 'flex',
-                                                        flexDirection: 'column',
-                                                        gap: '0.5rem'
-                                                    }}>
-                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                            <span className="suggestion-name" style={{ fontWeight: 'bold' }}>{s.name}</span>
-                                                            <span className="suggestion-score" style={{
-                                                                backgroundColor: 'var(--primary-accent)',
-                                                                color: 'white',
-                                                                padding: '0.25rem 0.5rem',
-                                                                borderRadius: '12px',
-                                                                fontSize: '0.8rem'
-                                                            }}>
-                                                                {s.score}% match
-                                                            </span>
-                                                        </div>
+                           {suggestions.length > 6 && (
+                               <div style={{
+                                   textAlign: 'center',
+                                   marginTop: '1rem',
+                                   padding: '0.75rem',
+                                   backgroundColor: 'var(--background-dark)',
+                                   borderRadius: '6px',
+                                   fontSize: '0.8rem',
+                                   color: 'var(--text-secondary)'
+                               }}>
+                                   +{suggestions.length - 6} more suggestions available
+                               </div>
+                           )}
+                       </div>
+                   )}
 
-                                                        {/* Template Preview */}
-                                                        <div style={{
-                                                            fontSize: '0.8rem',
-                                                            color: 'var(--text-secondary)',
-                                                            backgroundColor: 'var(--background-dark)',
-                                                            padding: '0.5rem',
-                                                            borderRadius: '4px',
-                                                            maxHeight: '60px',
-                                                            overflow: 'hidden'
-                                                        }}>
-                                                            Template preview will be loaded...
-                                                        </div>
+                   {/* Loading and Error States */}
+                   {isLoading && (
+                       <div className="results-panel" style={{
+                           backgroundColor: 'var(--background-panel)',
+                           border: '1px solid var(--border-color)',
+                           borderRadius: '12px',
+                           textAlign: 'center',
+                           padding: '2rem'
+                       }}>
+                           <div style={{ fontSize: '1.1rem', color: 'var(--primary-accent)', marginBottom: '0.5rem' }}>
+                               🔍 Analyzing your prompt...
+                           </div>
+                           <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                               This may take a few moments
+                           </div>
+                       </div>
+                   )}
 
-                                                        {/* Action Buttons */}
-                                                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                                            <button
-                                                                onClick={() => handleMergeTemplate(s.name)}
-                                                                disabled={isMergingTemplate}
-                                                                style={{
-                                                                    backgroundColor: 'var(--primary-accent)',
-                                                                    color: 'white',
-                                                                    border: 'none',
-                                                                    padding: '0.5rem 1rem',
-                                                                    borderRadius: '6px',
-                                                                    cursor: isMergingTemplate ? 'not-allowed' : 'pointer',
-                                                                    fontSize: '0.8rem',
-                                                                    opacity: isMergingTemplate ? 0.6 : 1
-                                                                }}
-                                                            >
-                                                                {isMergingTemplate ? '🔄 Merging...' : '🚀 Merge & Use'}
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                ))}
+                   {error && (
+                       <div className="results-panel" style={{
+                           backgroundColor: 'var(--error-color)',
+                           color: 'white',
+                           borderRadius: '12px',
+                           padding: '1rem',
+                           textAlign: 'center'
+                       }}>
+                           <div style={{ fontSize: '0.9rem' }}>{error}</div>
+                       </div>
+                   )}
 
-                                                {suggestions.length > 3 && (
-                                                    <div style={{ textAlign: 'center', marginTop: '0.5rem' }}>
-                                                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
-                                                            +{suggestions.length - 3} more suggestions available
-                                                        </span>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        )}
-                                        {!isLoading && !error && results && suggestions.length === 0 && <p>No template suggestions for this prompt.</p>}
-                                    </div>
-                                </div>
-                            )}
+                   {!isLoading && !error && !results && (
+                       <div className="results-panel" style={{
+                           backgroundColor: 'var(--background-panel)',
+                           border: '1px solid var(--border-color)',
+                           borderRadius: '12px',
+                           textAlign: 'center',
+                           padding: '2rem',
+                           color: 'var(--text-secondary)'
+                       }}>
+                           <div style={{ fontSize: '1rem', marginBottom: '0.5rem' }}>
+                               📊 Ready to analyze
+                           </div>
+                           <div style={{ fontSize: '0.9rem' }}>
+                               Enter a prompt above and click "Analyze" to get started
+                           </div>
+                       </div>
+                   )}
+               </div>
 
-                            {/* Optimization Tab */}
-                            {activeTab === 'optimize' && (
-                                <div className="optimization-tab">
-                                    <div className="results-panel">
-                                        <h2 className="sub-header">⚡ Prompt Optimization</h2>
+               {/* Right column for optimization controls */}
+               <div className="controls-column">
+                   {/* Optimization Panel */}
+                   <div className="results-panel">
+                       <h2 className="sub-header">⚡ Prompt Optimization</h2>
 
-                                        {/* Quick Configuration Bar */}
-                                        <div className="config-bar" style={{
-                                            display: 'grid',
-                                            gridTemplateColumns: '1fr 1fr',
-                                            gap: '1rem',
-                                            marginBottom: '1rem'
-                                        }}>
-                                            <div>
-                                                <label className="input-label">Metric</label>
-                                                <select className="select-input" value={metric} onChange={e => setMetric(e.target.value)}>
-                                                    <option value="exact_match">Exact Match</option>
-                                                    <option value="llm_as_a_judge">LLM Judge</option>
-                                                </select>
-                                            </div>
+                       {/* Quick Configuration */}
+                       <div style={{
+                           display: 'grid',
+                           gridTemplateColumns: '1fr 1fr',
+                           gap: '1rem',
+                           marginBottom: '1.5rem'
+                       }}>
+                           <div>
+                               <label className="input-label">Metric</label>
+                               <select className="select-input" value={metric} onChange={e => setMetric(e.target.value)}>
+                                   <option value="exact_match">Exact Match</option>
+                                   <option value="llm_as_a_judge">LLM Judge</option>
+                               </select>
+                           </div>
 
-                                            <div>
-                                                <label className="input-label">Max Iterations</label>
-                                                <input
-                                                    type="number"
-                                                    min="1"
-                                                    max="10"
-                                                    value={maxIterations}
-                                                    onChange={(e) => setMaxIterations(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
-                                                    className="text-input"
-                                                />
-                                            </div>
-                                        </div>
+                           <div>
+                               <label className="input-label">Max Iterations</label>
+                               <input
+                                   type="number"
+                                   min="1"
+                                   max="10"
+                                   value={maxIterations}
+                                   onChange={(e) => setMaxIterations(Math.max(1, Math.min(10, parseInt(e.target.value) || 1)))}
+                                   className="text-input"
+                               />
+                           </div>
+                       </div>
 
-                                        {/* Provider Configuration */}
-                                        <div className="provider-config" style={{
-                                            display: 'grid',
-                                            gridTemplateColumns: '1fr 1fr',
-                                            gap: '1rem',
-                                            marginBottom: '1rem'
-                                        }}>
-                                            <div>
-                                                <label className="input-label">Provider</label>
-                                                <select className="select-input" value={provider} onChange={e => setProvider(e.target.value)}>
-                                                    <option value="ollama">Ollama</option>
-                                                    <option value="openrouter">OpenRouter</option>
-                                                    <option value="groq">Groq</option>
-                                                </select>
-                                            </div>
+                       {/* Shared LLM Configuration Notice */}
+                       <div style={{
+                           backgroundColor: 'var(--background-dark)',
+                           padding: '1rem',
+                           borderRadius: '8px',
+                           marginBottom: '1.5rem',
+                           border: '1px solid var(--primary-accent)'
+                       }}>
+                           <div style={{ fontSize: '0.9rem', color: 'var(--primary-accent)', marginBottom: '0.5rem' }}>
+                               🤖 Using Shared LLM Configuration
+                           </div>
+                           <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                               Provider: {currentProvider} | Model: {currentModel}
+                               {useLlmRefiner && " (configured above)"}
+                               {!useLlmRefiner && " (using defaults)"}
+                           </div>
+                       </div>
 
-                                            <div>
-                                                <label className="input-label">Model</label>
-                                                <input
-                                                    type="text"
-                                                    className="text-input"
-                                                    value={model}
-                                                    onChange={e => setModel(e.target.value)}
-                                                    placeholder={provider === 'ollama' ? 'gemma:2b' : 'meta-llama/llama-3-8b-instruct'}
-                                                />
-                                            </div>
-                                        </div>
+                       {/* File Upload & Optimize Button */}
+                       <div style={{
+                           display: 'flex',
+                           gap: '1rem',
+                           alignItems: 'center',
+                           marginBottom: '1rem',
+                           flexWrap: 'wrap'
+                       }}>
+                           <label className="file-input-label" style={{ flex: 1, minWidth: '200px' }}>
+                               {selectedFile ? `✅ ${selectedFile.name}` : '📁 Choose Dataset File'}
+                               <input type="file" onChange={(e) => setSelectedFile(e.target.files ? e.target.files[0] : null)} accept=".csv,.jsonl"/>
+                           </label>
 
-                                        {/* API Key (conditional) */}
-                                        {(provider === 'openrouter' || provider === 'groq') && (
-                                            <div style={{ marginBottom: '1rem' }}>
-                                                <label className="input-label">API Key</label>
-                                                <input
-                                                    type="password"
-                                                    className="text-input"
-                                                    value={apiKey}
-                                                    onChange={e => setApiKey(e.target.value)}
-                                                    placeholder={`${provider} API Key`}
-                                                />
-                                            </div>
-                                        )}
+                           <button
+                               onClick={handleOptimizeClick}
+                               disabled={optimizationStatus === 'optimizing' || !selectedFile}
+                               style={{
+                                   backgroundColor: 'var(--primary-accent)',
+                                   color: 'white',
+                                   border: 'none',
+                                   padding: '0.75rem 1.5rem',
+                                   borderRadius: '8px',
+                                   cursor: optimizationStatus === 'optimizing' || !selectedFile ? 'not-allowed' : 'pointer',
+                                   fontSize: '0.9rem',
+                                   fontWeight: '500',
+                                   opacity: optimizationStatus === 'optimizing' || !selectedFile ? 0.6 : 1
+                               }}
+                           >
+                               {optimizationStatus === 'optimizing' ? '⚡ Optimizing...' : '⚡ Start Optimization'}
+                           </button>
+                       </div>
 
-                                        {/* File Upload & Action */}
-                                        <div className="file-upload-section" style={{
-                                            display: 'flex',
-                                            gap: '1rem',
-                                            alignItems: 'center',
-                                            marginBottom: '1rem',
-                                            flexWrap: 'wrap'
-                                        }}>
-                                            <label className="file-input-label" style={{ flex: 1, minWidth: '200px' }}>
-                                                {selectedFile ? `✅ ${selectedFile.name}` : '📁 Choose Dataset File'}
-                                                <input type="file" onChange={(e) => setSelectedFile(e.target.files ? e.target.files[0] : null)} accept=".csv,.jsonl"/>
-                                            </label>
+                       {/* Cost Estimation Toggle & Display */}
+                       <div style={{ marginBottom: '1rem' }}>
+                           <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                               <input
+                                   type="checkbox"
+                                   checked={showCostEstimation}
+                                   onChange={(e) => {
+                                       setShowCostEstimation(e.target.checked);
+                                       if (e.target.checked && selectedFile && currentModel) {
+                                           setTimeout(() => handleCostEstimation(), 100);
+                                       }
+                                   }}
+                                   style={{ width: 'auto' }}
+                               />
+                               <span>💰 Show Cost Estimation</span>
+                           </label>
+                       </div>
 
-                                            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-                                                <button
-                                                    onClick={handleOptimizeClick}
-                                                    disabled={optimizationStatus === 'optimizing' || !selectedFile}
-                                                    style={{
-                                                        backgroundColor: 'var(--primary-accent)',
-                                                        color: 'white',
-                                                        border: 'none',
-                                                        padding: '0.75rem 1.5rem',
-                                                        borderRadius: '8px',
-                                                        cursor: optimizationStatus === 'optimizing' || !selectedFile ? 'not-allowed' : 'pointer',
-                                                        fontSize: '0.9rem',
-                                                        fontWeight: '500',
-                                                        opacity: optimizationStatus === 'optimizing' || !selectedFile ? 0.6 : 1
-                                                    }}
-                                                >
-                                                    {optimizationStatus === 'optimizing' ? '⚡ Optimizing...' : '⚡ Start Optimization'}
-                                                </button>
+                       {/* Cost Display */}
+                       {showCostEstimation && costEstimation && costEstimation.total_cost_usd !== undefined && !isEstimatingCost && (
+                           <div className="cost-display" style={{
+                               backgroundColor: 'var(--background-dark)',
+                               padding: '0.75rem',
+                               borderRadius: '8px',
+                               marginTop: '1rem',
+                               border: '1px solid var(--border-color)'
+                           }}>
+                               <div style={{
+                                   display: 'flex',
+                                   alignItems: 'center',
+                                   justifyContent: 'space-between',
+                                   marginBottom: '0.5rem'
+                               }}>
+                                   <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                                       Estimated Cost:
+                                   </span>
+                                   <span style={{
+                                       fontSize: '1.1rem',
+                                       fontWeight: 'bold',
+                                       color: currentProvider !== 'ollama' && costEstimation.total_cost_usd > 0.01 ? 'var(--error-color)' : 'var(--primary-accent)'
+                                   }}>
+                                       ${costEstimation.total_cost_usd?.toFixed(6)}
+                                   </span>
+                               </div>
 
-                                                {/* Manual cost estimation trigger */}
-                                                <button
-                                                    onClick={handleCostEstimation}
-                                                    disabled={!selectedFile || !model}
-                                                    style={{
-                                                        backgroundColor: 'var(--background-card)',
-                                                        color: 'var(--text-primary)',
-                                                        border: '1px solid var(--border-color)',
-                                                        padding: '0.5rem 1rem',
-                                                        borderRadius: '6px',
-                                                        cursor: !selectedFile || !model ? 'not-allowed' : 'pointer',
-                                                        fontSize: '0.8rem',
-                                                        opacity: !selectedFile || !model ? 0.6 : 1
-                                                    }}
-                                                    title="Refresh cost estimation"
-                                                >
-                                                    🔄
-                                                </button>
-                                            </div>
-                                        </div>
+                               {currentProvider !== 'ollama' && costEstimation.total_cost_usd > 0.01 && (
+                                   <div style={{
+                                       fontSize: '0.8rem',
+                                       color: 'var(--error-color)',
+                                       backgroundColor: 'rgba(255, 85, 85, 0.1)',
+                                       padding: '0.25rem 0.5rem',
+                                       borderRadius: '4px',
+                                       marginBottom: '0.5rem'
+                                   }}>
+                                       ⚠️ Higher cost detected - confirm before proceeding
+                                   </div>
+                               )}
 
-                                        {/* Cost Estimation Toggle */}
-                                        <div style={{ marginBottom: '1rem' }}>
-                                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
-                                                <input
-                                                    type="checkbox"
-                                                    checked={showCostEstimation}
-                                                    onChange={(e) => {
-                                                        setShowCostEstimation(e.target.checked);
-                                                        // Trigger cost estimation when toggled on
-                                                        if (e.target.checked && selectedFile && model) {
-                                                            setTimeout(() => handleCostEstimation(), 100);
-                                                        }
-                                                    }}
-                                                    style={{ width: 'auto' }}
-                                                />
-                                                <span>💰 Show Cost Estimation</span>
-                                            </label>
-                                        </div>
+                               {currentProvider === 'ollama' && (
+                                   <div style={{
+                                       fontSize: '0.8rem',
+                                       color: 'var(--primary-accent)',
+                                       backgroundColor: 'rgba(13, 142, 255, 0.1)',
+                                       padding: '0.25rem 0.5rem',
+                                       borderRadius: '4px',
+                                       marginBottom: '0.5rem',
+                                       textAlign: 'center'
+                                   }}>
+                                       ✅ Free local inference
+                                   </div>
+                               )}
 
-                                        {/* Cost Estimation Display */}
-                                        {showCostEstimation && (
-                                            <>
-                                                {/* Loading State */}
-                                                {isEstimatingCost && (
-                                                    <div className="cost-display" style={{
-                                                        backgroundColor: 'var(--background-dark)',
-                                                        padding: '0.75rem',
-                                                        borderRadius: '8px',
-                                                        marginTop: '1rem',
-                                                        border: '1px solid var(--border-color)',
-                                                        textAlign: 'center'
-                                                    }}>
-                                                        <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                                                            🔄 Calculating cost estimation...
-                                                        </div>
-                                                    </div>
-                                                )}
+                               <div style={{
+                                   fontSize: '0.8rem',
+                                   color: 'var(--text-secondary)',
+                                   textAlign: 'center'
+                               }}>
+                                   {costEstimation.total_examples || 0} examples × {costEstimation.max_iterations || maxIterations} iterations
+                               </div>
+                           </div>
+                       )}
 
-                                                {/* Cost Results */}
-                                                {costEstimation && costEstimation.total_cost_usd !== undefined && !isEstimatingCost && (
-                                                    <div className="cost-display" style={{
-                                                        backgroundColor: 'var(--background-dark)',
-                                                        padding: '0.75rem',
-                                                        borderRadius: '8px',
-                                                        marginTop: '1rem',
-                                                        border: '1px solid var(--border-color)',
-                                                        animation: 'fadeIn 0.3s ease-in-out'
-                                                    }}>
-                                                        <div style={{
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            justifyContent: 'space-between',
-                                                            marginBottom: '0.5rem'
-                                                        }}>
-                                                            <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
-                                                                Estimated Cost:
-                                                            </span>
-                                                            <span style={{
-                                                                fontSize: '1.1rem',
-                                                                fontWeight: 'bold',
-                                                                color: provider !== 'ollama' && costEstimation.total_cost_usd > 0.01 ? 'var(--error-color)' : 'var(--primary-accent)'
-                                                            }}>
-                                                                ${costEstimation.total_cost_usd?.toFixed(6)}
-                                                            </span>
-                                                        </div>
+                       {optimizationStatus === 'error' && <p className="error-text">{optimizationError}</p>}
+                   </div>
+               </div>
+           </div>
 
-                                                        {provider !== 'ollama' && costEstimation.total_cost_usd > 0.01 && (
-                                                            <div style={{
-                                                                fontSize: '0.8rem',
-                                                                color: 'var(--error-color)',
-                                                                backgroundColor: 'rgba(255, 85, 85, 0.1)',
-                                                                padding: '0.25rem 0.5rem',
-                                                                borderRadius: '4px',
-                                                                marginBottom: '0.5rem'
-                                                            }}>
-                                                                ⚠️ Higher cost detected - confirm before proceeding
-                                                            </div>
-                                                        )}
-
-                                                        {provider === 'ollama' && (
-                                                            <div style={{
-                                                                fontSize: '0.8rem',
-                                                                color: 'var(--primary-accent)',
-                                                                backgroundColor: 'rgba(13, 142, 255, 0.1)',
-                                                                padding: '0.25rem 0.5rem',
-                                                                borderRadius: '4px',
-                                                                marginBottom: '0.5rem',
-                                                                textAlign: 'center'
-                                                            }}>
-                                                                ✅ Free local inference
-                                                            </div>
-                                                        )}
-
-                                                        <div style={{
-                                                            fontSize: '0.8rem',
-                                                            color: 'var(--text-secondary)',
-                                                            textAlign: 'center'
-                                                        }}>
-                                                            {costEstimation.total_examples || 0} examples × {costEstimation.max_iterations || maxIterations} iterations
-                                                        </div>
-                                                    </div>
-                                                )}
-                                            </>
-                                        )}
-
-                                        {/* Cost Estimation Error */}
-                                        {costEstimation && costEstimation.error && (
-                                            <div style={{
-                                                backgroundColor: 'var(--error-color)',
-                                                color: 'white',
-                                                padding: '0.5rem',
-                                                borderRadius: '4px',
-                                                marginTop: '1rem',
-                                                fontSize: '0.8rem'
-                                            }}>
-                                                Cost estimation failed: {costEstimation.error}
-                                            </div>
-                                        )}
-
-                                        {optimizationStatus === 'error' && <p className="error-text">{optimizationError}</p>}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
+           {/* Optimization Results - Full Width Section Below */}
+           {optimizationStatus === 'success' && optimizationResult && (
+               <div className="optimization-results" style={{
+                   width: '100%',
+                   padding: '2rem',
+                   borderRadius: '16px',
+                   animation: 'fadeIn 0.3s ease-in-out'
+               }}>
+                   <h2 className="sub-header" style={{ textAlign: 'center', marginBottom: '2rem' }}>
+                       🚀 Optimization Complete
+                   </h2>
+                   <div className="optimization-results-grid">
+                       <div style={{ textAlign: 'center' }}>
+                           <h4 className="result-header">📝 Original Prompt</h4>
+                           <pre className="prompt-box">{optimizationResult.original_prompt}</pre>
+                       </div>
+                       <div style={{ textAlign: 'center' }}>
+                           <h4 className="result-header">✨ Optimized Prompt</h4>
+                           <pre className="prompt-box">{optimizationResult.optimized_prompt}</pre>
+                       </div>
+                   </div>
+               </div>
+           )}
+       </div>
+   );
 };
 
 
